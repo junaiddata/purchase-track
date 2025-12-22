@@ -1,0 +1,192 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            <h1 class="text-2xl font-semibold text-slate-900">Quotations</h1>
+            <p class="mt-2 text-sm text-slate-700">A list of all purchase quotations including their status, supplier,
+                and balance details.</p>
+        </div>
+        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+            <a href="{% url 'create_quotation' %}"
+                class="inline-flex items-center justify-center rounded-md border border-transparent bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 sm:w-auto">Create
+                Quotation</a>
+        </div>
+    </div>
+
+    <!-- Filters & Search -->
+    <div class="mt-6 border-b border-slate-200 pb-5 sm:flex sm:items-center sm:justify-between">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <a href="?status=all{% if search %}&search={{ search }}{% endif %}"
+                class="{% if filter == 'all' %}border-brand-500 text-brand-600{% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">All</a>
+            <a href="?status=draft{% if search %}&search={{ search }}{% endif %}"
+                class="{% if filter == 'draft' %}border-brand-500 text-brand-600{% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Draft</a>
+            <a href="?status=confirmed{% if search %}&search={{ search }}{% endif %}"
+                class="{% if filter == 'confirmed' %}border-brand-500 text-brand-600{% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Confirmed</a>
+            <a href="?status=completed{% if search %}&search={{ search }}{% endif %}"
+                class="{% if filter == 'completed' %}border-brand-500 text-brand-600{% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Completed</a>
+            <a href="?status=cancelled{% if search %}&search={{ search }}{% endif %}"
+                class="{% if filter == 'cancelled' %}border-brand-500 text-brand-600{% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Cancelled</a>
+        </nav>
+        <div class="mt-3 sm:mt-0 sm:ml-4">
+            <form action="." method="GET" class="flex rounded-md shadow-sm">
+                <input type="hidden" name="status" value="{{ filter }}">
+                <div class="relative flex-grow focus-within:z-10">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <svg class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd"
+                                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <input type="text" name="search" id="search" value="{{ search }}"
+                        class="block w-full rounded-none rounded-l-md border-0 py-1.5 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6"
+                        placeholder="Search reference or supplier...">
+                </div>
+                <button type="submit"
+                    class="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-8 flex flex-col">
+        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+            <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                    <table class="min-w-full divide-y divide-slate-300">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col"
+                                    class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">
+                                    Reference</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">
+                                    Supplier (Manufacturer)</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">
+                                    Brand</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">
+                                    Status</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">
+                                    Created At</th>
+                                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                    <span class="sr-only">Edit</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 bg-white">
+                            {% for quote in quotes %}
+                            <tr>
+                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">
+                                    <a href="{% url 'quotation_detail' quote.pk %}"
+                                        class="text-brand-600 hover:text-brand-900">{{ quote.reference_number }}</a>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    {{ quote.manufacturer.name|default:"-" }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-700 font-medium">
+                                    {{ quote.supplier_name }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    <form action="{% url 'update_quotation_status' quote.pk %}" method="POST"
+                                        class="flex items-center space-x-2">
+                                        {% csrf_token %}
+                                        <select name="status" class="rounded-full px-2 py-1 text-xs font-semibold leading-5 border-0 focus:ring-2 focus:ring-brand-500 cursor-pointer
+                                                {% if quote.status == 'DRAFT' %}bg-slate-100 text-slate-800
+                                                {% elif quote.status == 'CONFIRMED' %}bg-blue-100 text-blue-800
+                                                {% elif quote.status == 'COMPLETED' %}bg-green-100 text-green-800
+                                                {% elif quote.status == 'CANCELLED' %}bg-red-100 text-red-800
+                                                {% endif %}">
+                                            <option value="DRAFT" {% if quote.status == 'DRAFT' %}selected{% endif %}>
+                                                Draft</option>
+                                            <option value="CONFIRMED" {% if quote.status == 'CONFIRMED' %}selected{% endif%}>Confirmed</option>
+                                            <option value="COMPLETED" {% if quote.status == 'COMPLETED' %}selected{% endif%}>Completed</option>
+                                            <option value="CANCELLED" {% if quote.status == 'CANCELLED' %}selected{% endif%}>Cancelled</option>
+                                        </select>
+                                        <button type="submit"
+                                            class="text-xs bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded px-2 py-1 shadow-sm">
+                                            Save
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    {{quote.created_at|date:"M d, Y" }}</td>
+                                <td
+                                    class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                    <a href="{% url 'quotation_detail' quote.pk %}"
+                                        class="text-brand-600 hover:text-brand-900">View<span class="sr-only">,
+                                            {{ quote.reference_number }}</span></a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">
+                                    No quotations found matching this filter.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if quotes.has_other_pages %}
+    <div class="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 mt-4">
+        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm text-slate-700">
+                    Showing
+                    <span class="font-medium">{{ quotes.start_index }}</span>
+                    to
+                    <span class="font-medium">{{ quotes.end_index }}</span>
+                    of
+                    <span class="font-medium">{{ quotes.paginator.count }}</span>
+                    results
+                </p>
+            </div>
+            <div>
+                <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                    {% if quotes.has_previous %}
+                    <a href="?page={{ quotes.previous_page_number }}&status={{ filter }}{% if search %}&search={{ search }}{% endif %}"
+                        class="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0">
+                        <span class="sr-only">Previous</span>
+                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd"
+                                d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                    {% endif %}
+
+                    {% for i in quotes.paginator.page_range %}
+                    {% if quotes.number == i %}
+                    <span
+                        class="relative z-10 inline-flex items-center bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{{i
+                        }}</span>
+                    {% else %}
+                    <a href="?page={{ i }}&status={{ filter }}{% if search %}&search={{ search }}{% endif %}"
+                        class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0">{{i
+                        }}</a>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if quotes.has_next %}
+                    <a href="?page={{ quotes.next_page_number }}&status={{ filter }}{% if search %}&search={{ search }}{% endif %}"
+                        class="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0">
+                        <span class="sr-only">Next</span>
+                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd"
+                                d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

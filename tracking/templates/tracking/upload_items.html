@@ -1,0 +1,50 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg font-medium leading-6 text-slate-900">Import Item Master</h3>
+            <div class="mt-2 max-w-xl text-sm text-slate-500">
+                <p>Upload an Excel file (.xlsx) to update the item database.</p>
+                <p class="mt-1">Expected columns: <code>Code</code>, <code>Description</code>, <code>Firm</code>,
+                    <code>Stock</code>, <code>UOM</code>.</p>
+            </div>
+
+            <form method="post" enctype="multipart/form-data" class="mt-5 space-y-6">
+                {% csrf_token %}
+
+                <div class="w-full">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Excel File</label>
+                    <div
+                        class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-md hover:bg-slate-50 transition-colors">
+                        <div class="space-y-1 text-center">
+                            <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none"
+                                viewBox="0 0 48 48" aria-hidden="true">
+                                <path
+                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="flex text-sm text-slate-600 justify-center">
+                                {{ form.file }}
+                            </div>
+                            <p class="text-xs text-slate-500">XLSX up to 10MB</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <a href="{% url 'dashboard' %}"
+                        class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 mr-3">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500">
+                        Upload Items
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

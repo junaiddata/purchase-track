@@ -1,0 +1,47 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-12">
+    <div class="mb-8">
+        <nav class="flex mb-4" aria-label="Breadcrumb">
+            <ol class="flex items-center space-x-2">
+                <li><a href="{% url 'manufacturer_list' %}"
+                        class="text-sm font-medium text-slate-500 hover:text-slate-700">Manufacturers</a></li>
+                <li class="flex items-center">
+                    <svg class="h-5 w-5 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
+                    </svg>
+                    <span class="ml-2 text-sm font-medium text-slate-800">{{ title }}</span>
+                </li>
+            </ol>
+        </nav>
+        <h1 class="text-3xl font-bold tracking-tight text-slate-900">{{ title }}</h1>
+    </div>
+
+    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-2xl overflow-hidden">
+        <form method="post" class="p-8">
+            {% csrf_token %}
+            <div class="space-y-6">
+                <div>
+                    <label for="{{ form.name.id_for_label }}"
+                        class="block text-sm font-semibold text-slate-700 mb-2">Manufacturer Name</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="pt-4 flex items-center justify-end space-x-4">
+                    <a href="{% url 'manufacturer_list' %}"
+                        class="text-sm font-semibold text-slate-600 hover:text-slate-900">Cancel</a>
+                    <button type="submit"
+                        class="inline-flex items-center px-6 py-2.5 bg-brand-600 rounded-xl text-sm font-bold text-white shadow-lg shadow-brand-200 hover:bg-brand-700 transition-all">
+                        Save Manufacturer
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

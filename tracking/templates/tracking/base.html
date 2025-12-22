@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Tracking System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Tom Select Customization for Tailwind */
+        .ts-control {
+            border-radius: 0.375rem;
+            /* rounded-md */
+            border-color: #cbd5e1;
+            /* slate-300 */
+            padding: 0.5rem 0.75rem;
+        }
+
+        .ts-wrapper.focus .ts-control {
+            border-color: #0ea5e9;
+            /* brand-500 */
+            box-shadow: 0 0 0 2px #e0f2fe;
+            /* ring */
+        }
+
+        .ts-dropdown {
+            border-radius: 0.375rem;
+            border-color: #e2e8f0;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <img src="https://sp-ao.shortpixel.ai/client/to_webp,q_glossy,ret_img,w_422/https://junaidworld.com/wp-content/uploads/2023/09/footer-logo.png.webp"
+                            alt="Logo" class="h-8 w-auto mr-3">
+                        <span class="text-xl font-bold text-brand-600 tracking-tight">Purchase<span
+                                class="text-slate-900">Track</span></span>
+                    </div>
+                    {% if user.is_authenticated %}
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        {% if user.profile.role == 'SALESMAN' %}
+                        <a href="{% url 'sales_dashboard' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Purchase View
+                        </a>
+                        {% else %}
+                        <!-- Admin / Default links -->
+                        <a href="{% url 'dashboard' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Dashboard
+                        </a>
+                        <a href="{% url 'upload_items' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Import Items
+                        </a>
+                        <a href="{% url 'manufacturer_list' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Manufacturers
+                        </a>
+                        <a href="{% url 'sales_dashboard' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            User View
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex items-center">
+                    {% if user.is_authenticated %}
+                    <div class="flex items-center space-x-4">
+                        <span class="text-sm text-slate-500">
+                            {{ user.username }} <span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-1">
+                                {% if user.profile.role == 'SALESMAN' %}User{% else %}{{ user.profile.role|default:"User" }}{% endif %}
+                        </span>
+                        <a href="{% url 'logout' %}"
+                            class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
+                    </div>
+                    {% else %}
+                    <a href="{% url 'login' %}"
+                        class="text-sm font-medium text-brand-600 hover:text-brand-500">Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for message in messages %}
+            <div
+                class="p-4 rounded-md {% if message.tags == 'success' %}bg-green-50 text-green-700{% elif message.tags == 'error' %}bg-red-50 text-red-700{% else %}bg-blue-50 text-blue-700{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-slate-400">&copy; 2025 Purchase Tracking System. All rights reserved.</p>
+        </div>
+    </footer>
+
+</body>
+
+</html>

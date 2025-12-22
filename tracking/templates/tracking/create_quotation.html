@@ -1,0 +1,887 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Page Header -->
+    <div class="mb-8">
+        <nav class="flex mb-4" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li class="inline-flex items-center">
+                    <a href="{% url 'dashboard' %}"
+                        class="inline-flex items-center text-sm font-medium text-slate-500 hover:text-brand-600 transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                                d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z">
+                            </path>
+                        </svg>
+                        Dashboard
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                clip-rule="evenodd"></path>
+                        </svg>
+                        <span class="ml-1 text-sm font-medium text-slate-700 md:ml-2">Create Quotation</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Create Quotation</h1>
+                <p class="mt-2 text-sm text-slate-600">Fill in the details below to create a new quotation.</p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                    <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                    Draft
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-8" id="quotation-form">
+        {% csrf_token %}
+
+        <!-- Quotation Details Card -->
+        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl overflow-hidden">
+            <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="h-10 w-10 rounded-lg bg-brand-100 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                </path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-slate-900">Quotation Details</h3>
+                        <p class="text-sm text-slate-500">Basic information about the quotation</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Reference Number -->
+                    <div class="space-y-2">
+                        <label for="{{ form.reference_number.id_for_label }}"
+                            class="block text-sm font-semibold text-slate-700">
+                            Reference Number <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path>
+                                </svg>
+                            </div>
+                            {{ form.reference_number }}
+                        </div>
+                        {% if form.reference_number.errors %}
+                        <p class="text-red-500 text-xs flex items-center mt-1">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                            {{ form.reference_number.errors.0 }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Supplier Name -->
+                    <div class="space-y-2">
+                        <label for="{{ form.supplier_name.id_for_label }}"
+                            class="block text-sm font-semibold text-slate-700">
+                            Brand Name <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            {{ form.supplier_name }}
+                        </div>
+                        {% if form.supplier_name.errors %}
+                        <p class="text-red-500 text-xs flex items-center mt-1">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                            {{ form.supplier_name.errors.0 }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Manufacturer -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label for="{{ form.manufacturer.id_for_label }}"
+                                class="block text-sm font-semibold text-slate-700">
+                                Manufacturer <span class="text-slate-400 font-normal">(Optional)</span>
+                            </label>
+                            <a href="{% url 'manufacturer_list' %}"
+                                class="text-[10px] font-bold text-brand-600 hover:text-brand-700 uppercase tracking-wider">Manage
+                                List</a>
+                        </div>
+                        <div class="relative">
+                            {{ form.manufacturer }}
+                        </div>
+                        <p class="text-[10px] text-slate-500">Pick the parent company (e.g., "Aalberts" for "Pegler")
+                        </p>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="space-y-2">
+                        <label for="{{ form.status.id_for_label }}" class="block text-sm font-semibold text-slate-700">
+                            Status
+                        </label>
+                        <div class="relative">
+                            {{ form.status }}
+                        </div>
+                        {% if form.status.errors %}
+                        <p class="text-red-500 text-xs flex items-center mt-1">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                            {{ form.status.errors.0 }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Items Card -->
+        <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl overflow-hidden">
+            <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                <svg class="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold text-slate-900">Line Items</h3>
+                            <p class="text-sm text-slate-500">Add products or services to this quotation</p>
+                        </div>
+                    </div>
+                    <span id="item-count"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                        <span id="item-count-number">{{ formset.forms|length }}</span> item(s)
+                    </span>
+                </div>
+            </div>
+
+            {{ formset.management_form }}
+
+            <!-- Table Header (Desktop) -->
+            <div
+                class="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <div class="col-span-4">Item</div>
+                <div class="col-span-2">Quantity</div>
+                <div class="col-span-2">Rate</div>
+                <div class="col-span-3">Expected Delivery</div>
+                <div class="col-span-1 text-center">Actions</div>
+            </div>
+
+            <div id="items-container" class="divide-y divide-slate-100">
+                {% for item_form in formset %}
+                <div class="item-row group hover:bg-slate-50/50 transition-colors duration-150"
+                    data-index="{{ forloop.counter0 }}">
+                    {{ item_form.id }}
+
+                    <!-- Unified Responsive Layout -->
+                    <div class="p-4 lg:px-6 lg:py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start lg:items-center">
+
+                        <!-- Item Selection -->
+                        <div class="lg:col-span-4">
+                            <label class="block text-xs font-medium text-slate-500 mb-1 lg:hidden">Item</label>
+                            {{ item_form.item }}
+                        </div>
+
+                        <!-- Quantity -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-medium text-slate-500 mb-1 lg:hidden">Quantity</label>
+                            <div class="relative rounded-md shadow-sm">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <span class="text-slate-500 sm:text-sm font-semibold">#</span>
+                                </div>
+                                {{ item_form.quantity_ordered }}
+                            </div>
+                        </div>
+
+                        <!-- Rate -->
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-medium text-slate-500 mb-1 lg:hidden">Rate</label>
+                            <div class="relative rounded-md shadow-sm">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <span class="text-slate-500 sm:text-sm">$</span>
+                                </div>
+                                {{ item_form.rate }}
+                            </div>
+                        </div>
+
+                        <!-- Expected Delivery -->
+                        <div class="lg:col-span-3">
+                            <label class="block text-xs font-medium text-slate-500 mb-1 lg:hidden">Expected
+                                Delivery</label>
+                            <div class="relative rounded-md shadow-sm">
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                {{ item_form.expected_delivery_date }}
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="lg:col-span-1 flex justify-end lg:justify-center mt-2 lg:mt-0">
+                            {% if formset.can_delete %}
+                            <div class="hidden">{{ item_form.DELETE }}</div>
+                            <button type="button"
+                                class="delete-row-btn p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-150"
+                                title="Delete this item">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if item_form.errors %}
+                    <div class="px-6 pb-4">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div class="flex">
+                                <svg class="h-5 w-5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                        clip-rule="evenodd"></path>
+                                </svg>
+                                <div class="ml-3 text-sm text-red-700">
+                                    {{ item_form.errors }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div id="empty-state" class="px-6 py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    <h3 class="mt-4 text-sm font-medium text-slate-900">No items added</h3>
+                    <p class="mt-1 text-sm text-slate-500">Get started by adding your first item to this quotation.</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Add Item Button -->
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                <button type="button" id="add-item"
+                    class="inline-flex items-center px-4 py-2 border-2 border-dashed border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all duration-150 w-full justify-center sm:w-auto">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Add New Item
+                </button>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div
+            class="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4 pt-6 border-t border-slate-200">
+            <div class="flex items-center text-sm text-slate-500">
+                <svg class="w-4 h-4 mr-1.5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"></path>
+                </svg>
+                All fields marked with <span class="text-red-500 mx-1">*</span> are required
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <a href="{% url 'dashboard' %}"
+                    class="inline-flex justify-center items-center px-6 py-2.5 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-all duration-150">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                    Cancel
+                </a>
+                <button type="button" id="save-draft-btn"
+                    class="inline-flex justify-center items-center px-6 py-2.5 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-all duration-150">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                        </path>
+                    </svg>
+                    Save as Draft
+                </button>
+                <button type="submit" id="submit-btn"
+                    class="inline-flex justify-center items-center px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-all duration-150">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Save Quotation
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"></div>
+
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div
+                class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div class="bg-white px-6 pb-6 pt-8">
+                    <div class="sm:flex sm:items-start">
+                        <div
+                            class="mx-auto flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0">
+                            <svg class="h-7 w-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                </path>
+                            </svg>
+                        </div>
+                        <div class="mt-4 text-center sm:ml-6 sm:mt-0 sm:text-left">
+                            <h3 class="text-xl font-semibold leading-6 text-slate-900" id="modal-title">Delete Item</h3>
+                            <div class="mt-3">
+                                <p class="text-sm text-slate-500 leading-relaxed">
+                                    Are you sure you want to remove this item from the quotation? This action cannot be
+                                    undone.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 px-6 py-4 sm:flex sm:flex-row-reverse gap-3">
+                    <button type="button" id="confirm-delete-btn"
+                        class="inline-flex w-full justify-center items-center rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:w-auto transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                            </path>
+                        </svg>
+                        Delete Item
+                    </button>
+                    <button type="button" id="cancel-delete-btn"
+                        class="mt-3 inline-flex w-full justify-center items-center rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast"
+    class="fixed bottom-4 right-4 z-50 hidden transform transition-all duration-300 translate-y-2 opacity-0">
+    <div class="flex items-center p-4 rounded-xl shadow-lg bg-white ring-1 ring-slate-900/5">
+        <div id="toast-icon" class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center">
+            <!-- Icon will be inserted by JS -->
+        </div>
+        <div class="ml-3">
+            <p id="toast-title" class="text-sm font-semibold text-slate-900"></p>
+            <p id="toast-message" class="text-sm text-slate-500"></p>
+        </div>
+        <button type="button" id="toast-close" class="ml-6 text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"></path>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay"
+    class="fixed inset-0 z-50 hidden bg-slate-900/30 backdrop-blur-sm flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-brand-200 border-t-brand-600"></div>
+        <p class="mt-4 text-sm font-medium text-slate-700">Processing...</p>
+    </div>
+</div>
+
+<style>
+    /* Custom form input styles */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select {
+        @apply block w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm transition-colors duration-150;
+    }
+
+    input[type="text"]:hover,
+    input[type="number"]:hover,
+    input[type="date"]:hover,
+    select:hover {
+        @apply border-slate-400;
+    }
+
+    /* Input with icon padding */
+    .has-icon {
+        @apply pl-10;
+    }
+
+    /* TomSelect customization */
+    .ts-wrapper {
+        @apply !border-0;
+    }
+
+    .ts-control {
+        @apply !rounded-lg !border-slate-300 !shadow-sm !py-2 !px-3 hover: !border-slate-400 transition-colors duration-150;
+    }
+
+    .ts-control:focus,
+    .ts-wrapper.focus .ts-control {
+        @apply !border-brand-500 !ring-1 !ring-brand-500;
+    }
+
+    .ts-dropdown {
+        @apply !rounded-lg !border-slate-200 !shadow-lg !mt-1;
+    }
+
+    .ts-dropdown .option {
+        @apply !py-2.5 !px-3;
+    }
+
+    .ts-dropdown .active {
+        @apply !bg-brand-50 !text-brand-700;
+    }
+
+    /* Delete row animation */
+    .item-row.deleting {
+        @apply opacity-50 scale-95 transition-all duration-200;
+    }
+
+    /* Modal animation */
+    #delete-modal:not(.hidden) {
+        animation: fadeIn 0.15s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    #delete-modal:not(.hidden)>div:last-child>div>div {
+        animation: slideUp 0.2s ease-out;
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    /* Toast animation */
+    #toast.show {
+        @apply translate-y-0 opacity-100;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('items-container');
+        const addButton = document.getElementById('add-item');
+        const totalForms = document.querySelector('#id_items-TOTAL_FORMS');
+        const supplierSelect = document.getElementById('id_supplier_name');
+        const deleteModal = document.getElementById('delete-modal');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const toast = document.getElementById('toast');
+        const form = document.getElementById('quotation-form');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        let currentFirmItems = [];
+        let rowToDelete = null;
+
+        // =====================
+        // Toast Notification
+        // =====================
+        function showToast(type, title, message) {
+            const toastIcon = document.getElementById('toast-icon');
+            const toastTitle = document.getElementById('toast-title');
+            const toastMessage = document.getElementById('toast-message');
+
+            const icons = {
+                success: `<svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                      </svg>`,
+                error: `<svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>`,
+                info: `<svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                   </svg>`
+            };
+
+            const bgColors = {
+                success: 'bg-emerald-100',
+                error: 'bg-red-100',
+                info: 'bg-blue-100'
+            };
+
+            toastIcon.className = `flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${bgColors[type]}`;
+            toastIcon.innerHTML = icons[type];
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('show'), 10);
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 4000);
+        }
+
+        document.getElementById('toast-close').addEventListener('click', () => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.classList.add('hidden'), 300);
+        });
+
+        // =====================
+        // Update Item Count
+        // =====================
+        function updateItemCount() {
+            const visibleRows = container.querySelectorAll('.item-row:not(.deleted)');
+            const countEl = document.getElementById('item-count-number');
+            if (countEl) {
+                countEl.textContent = visibleRows.length;
+            }
+        }
+
+        // =====================
+        // TomSelect Initialization
+        // =====================
+        function initTomSelect(selectElement, customPlaceholder) {
+            if (selectElement.tomselect) {
+                selectElement.tomselect.destroy();
+            }
+
+            new TomSelect(selectElement, {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: customPlaceholder || "Search for an item...",
+                maxOptions: null,
+                render: {
+                    option: function (data, escape) {
+                        return `<div class="flex items-center py-1">
+                                <span class="font-medium">${escape(data.text)}</span>
+                            </div>`;
+                    }
+                }
+            });
+        }
+
+        function populateSelect(selectElement) {
+            if (selectElement.tomselect) {
+                selectElement.tomselect.destroy();
+            }
+
+            const currentValue = selectElement.value;
+            selectElement.innerHTML = '';
+
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.text = 'Select an item...';
+            selectElement.appendChild(defaultOption);
+
+            currentFirmItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.text = `${item.item_code} - ${item.item_description}`;
+                if (String(item.id) === String(currentValue)) {
+                    option.selected = true;
+                }
+                selectElement.appendChild(option);
+            });
+
+            initTomSelect(selectElement, "Search for an item...");
+        }
+
+        function fetchAndPopulateItems(firmName) {
+            if (!firmName) {
+                currentFirmItems = [];
+                container.querySelectorAll('select[name$="-item"]').forEach(select => {
+                    if (select.tomselect) select.tomselect.destroy();
+                    select.innerHTML = '<option value="">Select Supplier First</option>';
+                    initTomSelect(select, "Select Supplier First");
+                });
+                return;
+            }
+
+            fetch(`/api/items-by-firm/?firm=${encodeURIComponent(firmName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    currentFirmItems = data.items;
+                    container.querySelectorAll('select[name$="-item"]').forEach(select => {
+                        populateSelect(select);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching items:', error);
+                    showToast('error', 'Error', 'Failed to load items. Please try again.');
+                });
+        }
+
+        // =====================
+        // Supplier Change Handler
+        // =====================
+        if (supplierSelect) {
+            supplierSelect.addEventListener('change', function () {
+                fetchAndPopulateItems(this.value);
+                if (this.value) {
+                    showToast('info', 'Supplier Selected', 'Items list has been updated.');
+                }
+            });
+
+            if (supplierSelect.value) {
+                fetchAndPopulateItems(supplierSelect.value);
+            } else {
+                container.querySelectorAll('select[name$="-item"]').forEach(select => {
+                    select.innerHTML = '<option value="">Select Supplier First</option>';
+                    initTomSelect(select, "Select Supplier First");
+                });
+            }
+        }
+
+        // =====================
+        // Delete Modal Handlers
+        // =====================
+        function openDeleteModal(row) {
+            rowToDelete = row;
+            deleteModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDeleteModal() {
+            deleteModal.classList.add('hidden');
+            document.body.style.overflow = '';
+            rowToDelete = null;
+        }
+
+        cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+
+        deleteModal.addEventListener('click', function (e) {
+            if (e.target === deleteModal || e.target === deleteModal.querySelector('.fixed')) {
+                closeDeleteModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !deleteModal.classList.contains('hidden')) {
+                closeDeleteModal();
+            }
+        });
+
+        confirmDeleteBtn.addEventListener('click', function () {
+            if (rowToDelete) {
+                // Add animation class
+                rowToDelete.classList.add('deleting');
+
+                // Mark the checkbox as checked for Django formset
+                const deleteCheckbox = rowToDelete.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (deleteCheckbox) {
+                    deleteCheckbox.checked = true;
+                }
+
+                // Remove required attribute from all inputs to prevent browser validation blocking submission
+                // AND clear values so Django ignores extra (unsaved) forms that are being removed
+                rowToDelete.querySelectorAll('input, select, textarea').forEach(input => {
+                    if (input !== deleteCheckbox) {
+                        input.removeAttribute('required');
+                        input.value = ''; // Clear value
+                        if (input.tagName === 'SELECT' && input.tomselect) {
+                            input.tomselect.clear();
+                        }
+                    }
+                });
+
+                // Animate and hide
+                setTimeout(() => {
+                    rowToDelete.classList.add('deleted');
+                    rowToDelete.style.display = 'none';
+                    updateItemCount();
+                    showToast('success', 'Item Removed', 'The item has been removed from the quotation.');
+                }, 200);
+            }
+            closeDeleteModal();
+        });
+
+        // =====================
+        // Delete Button Click Handler (Event Delegation)
+        // =====================
+        container.addEventListener('click', function (e) {
+            const deleteBtn = e.target.closest('.delete-row-btn');
+            if (deleteBtn) {
+                const row = deleteBtn.closest('.item-row');
+                openDeleteModal(row);
+            }
+        });
+
+        // =====================
+        // Add New Item
+        // =====================
+        addButton.addEventListener('click', function () {
+            const formCount = parseInt(totalForms.value);
+            const rowToClone = container.querySelector('.item-row');
+
+            if (!rowToClone) {
+                // If no existing rows, we need to create from template
+                showToast('info', 'Info', 'Please save the form first to add more items.');
+                return;
+            }
+
+            const emptyRow = rowToClone.cloneNode(true);
+            emptyRow.classList.remove('deleting', 'deleted');
+            emptyRow.style.display = '';
+            emptyRow.removeAttribute('data-index');
+
+            emptyRow.querySelectorAll('input, select').forEach(input => {
+                const name = input.name.replace(/items-\d+-/, `items-${formCount}-`);
+                const id = input.id.replace(/items-\d+-/, `items-${formCount}-`);
+                input.name = name;
+                input.id = id;
+                input.value = '';
+                if (input.type === 'checkbox') input.checked = false;
+
+                if (input.tagName === 'SELECT' && input.name.endsWith('-item')) {
+                    if (input.tomselect) {
+                        input.tomselect.destroy();
+                        delete input.tomselect;
+                    }
+                    input.classList.remove('tomselected', 'ts-hidden-accessible');
+
+                    const wrapper = input.nextElementSibling;
+                    if (wrapper && wrapper.classList.contains('ts-wrapper')) {
+                        wrapper.remove();
+                    }
+
+                    if (currentFirmItems.length > 0) {
+                        input.innerHTML = '<option value="">Select an item...</option>';
+                        currentFirmItems.forEach(item => {
+                            const opt = document.createElement('option');
+                            opt.value = item.id;
+                            opt.text = `${item.item_code} - ${item.item_description}`;
+                            input.appendChild(opt);
+                        });
+                    } else if (!supplierSelect.value) {
+                        input.innerHTML = '<option value="">Select Supplier First</option>';
+                    }
+                }
+            });
+
+            // Update mobile item number
+            const mobileLabel = emptyRow.querySelector('.lg\\:hidden .rounded-md');
+            if (mobileLabel) {
+                mobileLabel.textContent = `Item #${formCount + 1}`;
+            }
+
+            // Clear any error messages
+            const errorDiv = emptyRow.querySelector('.bg-red-50');
+            if (errorDiv) {
+                errorDiv.closest('.px-6')?.remove();
+            }
+
+            container.appendChild(emptyRow);
+
+            // Initialize TomSelect on the new select
+            const newSelect = emptyRow.querySelector('select[name$="-item"]');
+            if (newSelect) {
+                const placeholder = currentFirmItems.length > 0 ? "Search for an item..." : "Select Supplier First";
+                initTomSelect(newSelect, placeholder);
+            }
+
+            totalForms.value = formCount + 1;
+            updateItemCount();
+
+            // Scroll to new row
+            emptyRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            showToast('success', 'Item Added', 'A new item row has been added.');
+        });
+
+        // =====================
+        // Form Submit Handler
+        // =====================
+        form.addEventListener('submit', function (e) {
+            // Show loading overlay
+            loadingOverlay.classList.remove('hidden');
+
+            // Optional: Add form validation here
+        });
+
+        // =====================
+        // Save Draft Button
+        // =====================
+        const saveDraftBtn = document.getElementById('save-draft-btn');
+        if (saveDraftBtn) {
+            saveDraftBtn.addEventListener('click', function () {
+                // Set status to draft if there's a status field
+                const statusField = document.getElementById('id_status');
+                if (statusField) {
+                    // Find and select the draft option
+                    for (let option of statusField.options) {
+                        if (option.text.toLowerCase().includes('draft')) {
+                            option.selected = true;
+                            break;
+                        }
+                    }
+                }
+                form.submit();
+            });
+        }
+
+        // =====================
+        // Initialize
+        // =====================
+        updateItemCount();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+migration_output.txt
+output.log
+
+# Sensitive data
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Excel/Temp
+~$*
+*.xlsx

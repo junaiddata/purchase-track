@@ -1,0 +1,44 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white shadow sm:rounded-lg overflow-hidden">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium leading-6 text-slate-900">Confirm Receipt</h3>
+        <div class="mt-2 max-w-xl text-sm text-slate-500">
+            <p>Are you sure you want to receive the following release?</p>
+        </div>
+
+        <div class="mt-4 bg-slate-50 p-4 rounded-md">
+            <dl class="space-y-1">
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-slate-500">Item:</dt>
+                    <dd class="text-sm text-slate-900">{{ release.quotation_item.item.item_code }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-slate-500">Quantity:</dt>
+                    <dd class="text-sm font-bold text-green-600">{{ release.quantity_released }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-slate-500">Container:</dt>
+                    <dd class="text-sm text-slate-900">{{ release.container_info|default:"-" }}</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-sm font-medium text-slate-500">Expected:</dt>
+                    <dd class="text-sm text-slate-900">{{ release.expected_arrival_date }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="mt-5 sm:flex sm:justify-end">
+            <form method="post">
+                {% csrf_token %}
+                <a href="{% url 'quotation_detail' release.quotation_item.quotation.pk %}"
+                    class="mt-3 inline-flex w-full justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-base font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm mr-3">Cancel</a>
+                <button type="submit"
+                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-brand-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-brand-700 focus:outline-none sm:w-auto sm:text-sm">Confirm
+                    Receipt</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

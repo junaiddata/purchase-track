@@ -1,0 +1,134 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="md:flex md:items-center md:justify-between mb-6">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-2xl font-bold leading-7 text-slate-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                Receive Shipment
+            </h2>
+            <p class="mt-1 text-sm text-slate-500">
+                For Item: <span class="font-medium text-slate-700">{{ item.item.item_code }}</span> 
+                ({{item.item.item_description }})
+            </p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div
+        class="grid grid-cols-1 gap-y-6 sm:grid-cols-3 sm:gap-x-4 mb-8 bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+        <div>
+            <dt class="text-sm font-medium text-slate-500">Quantity Ordered</dt>
+            <dd class="mt-1 text-lg font-semibold text-slate-900">{{ item.quantity_ordered }}</dd>
+        </div>
+        <div>
+            <dt class="text-sm font-medium text-slate-500">Total Received</dt>
+            <dd class="mt-1 text-lg font-semibold text-green-600">{{ item.quantity_received }}</dd>
+        </div>
+        <div>
+            <dt class="text-sm font-medium text-slate-500">Balance Pending</dt>
+            <dd class="mt-1 text-lg font-bold text-red-600">{{ item.balance_quantity }}</dd>
+        </div>
+    </div>
+
+    <!-- Pending Releases Section -->
+    <div class="mb-10">
+        <h3 class="text-lg font-medium leading-6 text-slate-900 mb-4">Pending Releases (In Transit)</h3>
+        {% if pending_releases %}
+        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+            <ul role="list" class="divide-y divide-slate-200">
+                {% for release in pending_releases %}
+                <li>
+                    <div class="px-4 py-4 sm:px-6 hover:bg-slate-50 flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <p class="text-sm font-medium text-brand-600 truncate">
+                                    Release #{{ release.pk }} - {{ release.quantity_released }} Units
+                                </p>
+                                <div class="ml-2 flex-shrink-0 flex">
+                                    <p
+                                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                        In Transit
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="mt-2 sm:flex sm:justify-between">
+                                <div class="sm:flex">
+                                    <p class="flex items-center text-sm text-slate-500 mr-6">
+                                        <span class="font-medium mr-1">Expected:</span> {{ release.expected_arrival_date}}
+                                    </p>
+                                    {% if release.container_info %}
+                                    <p class="mt-2 flex items-center text-sm text-slate-500 sm:mt-0">
+                                        <span class="font-medium mr-1">Container:</span> {{ release.container_info }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ml-5 flex-shrink-0">
+                            <a href="{% url 'receive_release' release.pk %}"
+                                class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none">
+                                Receive This
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-500">No pending releases found. You can record a manual shipment below.</p>
+        {% endif %}
+    </div>
+
+    <!-- Manual Form -->
+    <div class="bg-white shadow sm:rounded-lg border-t-4 border-slate-100">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg font-medium leading-6 text-slate-900 mb-4">Record New Manual Shipment</h3>
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+
+                <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-4">
+                    <div>
+                        <label for="{{ form.received_date.id_for_label }}"
+                            class="block text-sm font-medium text-slate-700">Date Received</label>
+                        <div class="mt-1">
+                            {{ form.received_date }}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="{{ form.quantity_received.id_for_label }}"
+                            class="block text-sm font-medium text-slate-700">Quantity Receiving Now</label>
+                        <div class="mt-1">
+                            {{ form.quantity_received }}
+                        </div>
+                        {% if form.quantity_received.errors %}
+                        <p class="text-red-500 text-xs mt-1">{{ form.quantity_received.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label for="{{ form.remarks.id_for_label }}"
+                        class="block text-sm font-medium text-slate-700">Remarks (Optional)</label>
+                    <div class="mt-1">
+                        {{ form.remarks }}
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-5">
+                    <a href="{% url 'quotation_detail' item.quotation.pk %}"
+                        class="bg-white py-2 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 mr-3">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500">
+                        Record Shipment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
