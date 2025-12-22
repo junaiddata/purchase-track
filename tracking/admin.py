@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import ItemMaster, Quotation, QuotationItem, Shipment, Supplier
+from .models import ItemMaster, Quotation, QuotationItem, Shipment, Supplier, Manufacturer, UserProfile, Release
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
@@ -31,23 +31,17 @@ class QuotationAdmin(admin.ModelAdmin):
 class ShipmentAdmin(admin.ModelAdmin):
     list_display = ('quotation_item', 'quantity_received', 'received_date')
 
-from django.contrib.auth.admin import UserAdmin
-from django.contrib.auth.models import User
-from .models import UserProfile, Release
-
-class UserProfileInline(admin.StackedInline):
-    model = UserProfile
-    can_delete = False
-    verbose_name_plural = 'Profile'
-
-# Unregister original User admin
-admin.site.unregister(User)
-
-# Re-register User admin with inline
-@admin.register(User)
-class CustomUserAdmin(UserAdmin):
-    inlines = (UserProfileInline,)
+# User Management
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role')
+    list_filter = ('role',)
+    search_fields = ('user__username', 'user__email')
 
 @admin.register(Release)
 class ReleaseAdmin(admin.ModelAdmin):
     list_display = ('quotation_item', 'quantity_released', 'release_date', 'expected_arrival_date')
+@admin.register(Manufacturer)
+class ManufacturerAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
