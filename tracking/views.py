@@ -410,55 +410,43 @@ def sales_firm_track(request):
     if not firm_name:
         return redirect('sales_dashboard')
         
-    # Incoming (In Transit) - Release objects, grouped by item
-    releases_queryset = Release.objects.filter(
+    # 1. Incoming (On The Way)
+    # Changed from grouping to flat list for Table view
+    in_transit_releases = Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=False
-    ).select_related('quotation_item__item', 'quotation_item__quotation').order_by('expected_arrival_date')
-    
-    # Group releases by item code
-    from collections import defaultdict
-    releases_by_item = defaultdict(list)
-    for release in releases_queryset:
-        item = release.quotation_item.item
-        releases_by_item[item.item_code].append({
-            'release': release,
-            'item': item,
-            'po_ref': release.quotation_item.quotation.reference_number,
-        })
-    
-    # Convert to list of dicts for template
-    grouped_releases = [
-        {
-            'item_code': item_code,
-            'item': releases[0]['item'],
-            'releases': [r['release'] for r in releases],
-            'po_ref': releases[0]['po_ref'],
-        }
-        for item_code, releases in releases_by_item.items()
-    ]
+    ).select_related(
+        'quotation_item__item', 
+        'quotation_item__quotation',
+        'quotation_item__quotation__manufacturer'
+    ).order_by('container_info', 'expected_arrival_date')
 
-    # Received (History)
-    received_releases = Release.objects.filter(
+    # 2. Received (History) with Pagination
+    received_queryset = Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=True
-    ).select_related('quotation_item__item', 'quotation_item__quotation').order_by('-release_date')
+    ).select_related(
+        'quotation_item__item', 
+        'quotation_item__quotation'
+    ).order_by('-release_date')
     
-    # Pending (Not yet released) - QuotationItems
-    # We need to filter items where balance_to_release > 0.
-    # Since balance_to_release is a property, we can't filter directly in SQL efficiently without annotation.
-    # For now, let's fetch active items and filter in python or basic SQL
+    paginator = Paginator(received_queryset, 30) # Show 15 records per page
+    page_number = request.GET.get('page')
+    received_releases = paginator.get_page(page_number)
+    
+    # 3. Pending (At Factory)
     all_firm_items = QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status='CONFIRMED'
-    ).select_related('item', 'quotation').order_by('expected_delivery_date')
+    ).select_related('item', 'quotation', 'quotation__manufacturer').order_by('expected_delivery_date')
     
+    # Filter for items with balance > 0
     pending_items = [item for item in all_firm_items if item.balance_to_release > 0]
     
     # Get supplier logo
     supplier_logo = None
     try:
-        from .models import Supplier, Quotation
+        from .models import Supplier
         supplier = Supplier.objects.filter(name=firm_name).first()
         if supplier and supplier.logo:
             supplier_logo = supplier.logo
@@ -467,7 +455,7 @@ def sales_firm_track(request):
     
     return render(request, 'tracking/sales_firm_track.html', {
         'firm': firm_name,
-        'grouped_releases': grouped_releases,
+        'in_transit_releases': in_transit_releases, # Updated context variable
         'received_releases': received_releases,
         'pending_items': pending_items,
         'supplier_logo': supplier_logo,
@@ -480,7 +468,7 @@ def get_items_by_firm(request):
     if not firm:
         return JsonResponse({'items': []})
     
-    items = ItemMaster.objects.filter(item_firm=firm).values('id', 'item_code', 'item_description').order_by('item_code')
+    items = ItemMaster.objects.filter(item_firm=firm).values('id', 'item_code', 'item_description', 'item_upvc').order_by('item_code')
     return JsonResponse({'items': list(items)})
 
 # Manufacturer Management

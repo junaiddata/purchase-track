@@ -635,7 +635,7 @@
             currentFirmItems.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.id;
-                option.text = `${item.item_code} - ${item.item_description}`;
+                option.text = `${item.item_code} - ${item.item_description} - ${item.item_upvc}`;
                 if (String(item.id) === String(currentValue)) {
                     option.selected = true;
                 }
@@ -808,7 +808,7 @@
                         currentFirmItems.forEach(item => {
                             const opt = document.createElement('option');
                             opt.value = item.id;
-                            opt.text = `${item.item_code} - ${item.item_description}`;
+                            opt.text = `${item.item_code} - ${item.item_description} - ${item.item_upvc}`;
                             input.appendChild(opt);
                         });
                     } else if (!supplierSelect.value) {
