@@ -26,4 +26,9 @@ urlpatterns = [
     path('manufacturers/<int:pk>/delete/', views.manufacturer_delete, name='manufacturer_delete'),
     path('manufacturers/upload/', views.manufacturer_upload, name='manufacturer_upload'),
     path('run-stock-import/', views.run_stock_import, name='run_stock_import'),
+    
+    # Local Purchase Module
+    path('local-purchase/', views.local_purchase_dashboard, name='local_purchase_dashboard'),
+    path('local-purchase/list/', views.local_purchase_list, name='local_purchase_list'),
+    path('local-purchase/upload/', views.local_purchase_upload, name='local_purchase_upload'),
 ]

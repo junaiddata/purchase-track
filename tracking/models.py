@@ -117,3 +117,49 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.role}"
+
+class LocalPurchaseItem(models.Model):
+    """Model to store Local Purchase Analysis data from Excel."""
+    brand = models.CharField(max_length=100, help_text="Brand/Sheet Name (e.g., HEPWORTH)", db_index=True)
+    item_code = models.CharField(max_length=50)
+    upc_code = models.CharField(max_length=50, blank=True, null=True)
+    description = models.TextField(blank=True)
+    
+    # Stock Columns
+    current_stock_ras = models.IntegerField(default=0)
+    current_stock_dip = models.IntegerField(default=0)
+    sold_qty_2024 = models.IntegerField(default=0)
+    
+    # Channels
+    contg = models.IntegerField(default=0)
+    trdg = models.IntegerField(default=0)
+    stores = models.IntegerField(default=0)
+    
+    # Analysis 2025
+    total_sold_qty_2025 = models.IntegerField(default=0)
+    avg_15day_sales = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    stock_sufficiency_months = models.DecimalField(max_digits=10, decimal_places=1, default=0.0)
+    
+    # Requirements
+    lpo_given = models.IntegerField(default=0)
+    open_so_qty = models.IntegerField(default=0)
+    stock_reqt_calcn = models.IntegerField(default=0) # Can be negative
+    stock_requirement = models.IntegerField(default=0)
+    
+    # Valuation
+    value = models.DecimalField(max_digits=12, decimal_places=2, default=0.0)
+    cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.0)
+    
+    # Extras
+    ho_per_lpo_qty = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    stock_reqt_ras_stores = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['brand', 'item_code']
+        verbose_name = "Local Purchase Item"
+        verbose_name_plural = "Local Purchase Items"
+
+    def __str__(self):
+        return f"{self.brand} - {self.item_code}"

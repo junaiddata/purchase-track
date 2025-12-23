@@ -1,0 +1,69 @@
+{% for item in items %}
+<tr class="divide-x divide-slate-200 hover:bg-slate-50 transition-colors group">
+    <!-- Sticky Code -->
+    <td class="px-1 py-1.5 sticky left-0 bg-white group-hover:bg-slate-50 font-medium text-slate-900 border-r border-slate-200 align-middle">
+        {{ item.item_code }}
+    </td>
+    <td class="px-1 py-1.5 text-slate-500 align-middle">{{ item.upc_code }}</td>
+    
+    <!-- WRAPPING DESCRIPTION -->
+    <td class="px-1 py-1.5 text-slate-900 whitespace-normal break-words min-w-[220px] max-w-[300px] leading-tight align-middle" title="{{ item.description }}">
+        {{ item.description }}
+    </td>
+
+    <!-- Stock -->
+    <td class="px-1 py-1.5 text-right bg-blue-50/30 text-slate-700 align-middle">{{ item.current_stock_ras }}</td>
+    <td class="px-1 py-1.5 text-right bg-yellow-50/30 text-slate-700 align-middle">{{ item.current_stock_dip }}</td>
+
+    <td class="px-1 py-1.5 text-right text-slate-700 align-middle">{{ item.sold_qty_2024 }}</td>
+
+    <!-- Channels -->
+    <td class="px-1 py-1.5 text-right bg-green-50/30 text-green-700 font-medium align-middle">{{ item.contg }}</td>
+    <td class="px-1 py-1.5 text-right bg-yellow-50/30 text-yellow-700 align-middle">{{ item.trdg }}</td>
+    <td class="px-1 py-1.5 text-right text-slate-700 align-middle">{{ item.stores }}</td>
+
+    <!-- Analysis -->
+    <td class="px-1 py-1.5 text-right font-bold text-slate-900 align-middle">{{ item.total_sold_qty_2025 }}</td>
+    <td class="px-1 py-1.5 text-right text-slate-600 align-middle">{{ item.avg_15day_sales|floatformat:0 }}</td>
+
+    <td class="px-1 py-1.5 text-center align-middle">
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-medium 
+        {% if item.stock_sufficiency_months < 1 %}bg-red-100 text-red-800
+        {% elif item.stock_sufficiency_months < 3 %}bg-yellow-100 text-yellow-800
+        {% else %}bg-green-100 text-green-800{% endif %}">
+            {{ item.stock_sufficiency_months|floatformat:1 }}
+        </span>
+    </td>
+
+    <td class="px-1 py-1.5 text-right bg-yellow-50/30 font-medium align-middle">{{ item.lpo_given }}</td>
+    <td class="px-1 py-1.5 text-right bg-orange-50/30 text-orange-700 align-middle">{{ item.open_so_qty }}</td>
+
+    <!-- Requirements -->
+    <td class="px-1 py-1.5 text-right text-slate-500 align-middle">{{ item.stock_reqt_calcn }}</td>
+
+    <td class="px-1 py-1.5 text-right bg-yellow-100 text-yellow-900 font-bold border-x-2 border-yellow-200 align-middle">
+        {{ item.stock_requirement }}
+    </td>
+
+    <td class="px-1 py-1.5 text-right bg-yellow-50/30 text-red-600 font-medium align-middle">
+        {{ item.value|floatformat:2 }}
+    </td>
+    <td class="px-1 py-1.5 text-right bg-blue-50/30 text-slate-600 align-middle">{{ item.cost|floatformat:2 }}</td>
+
+    <td class="px-1 py-1.5 text-right bg-yellow-50/30 align-middle">{{ item.ho_per_lpo_qty|floatformat:0 }}</td>
+
+    <td class="px-1 py-1.5 text-right bg-blue-50/30 text-blue-700 align-middle">
+        {% if item.stock_reqt_ras_stores > 0 %}
+        {{ item.stock_reqt_ras_stores|floatformat:0 }}
+        {% else %}
+        -
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="20" class="px-3 py-8 text-center text-slate-500">
+        No items found.
+    </td>
+</tr>
+{% endfor %}

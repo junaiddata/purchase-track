@@ -1,0 +1,306 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="w-full min-h-screen bg-white py-4 px-2">
+
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'local_purchase_dashboard' %}"
+                class="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 tracking-tight">{{ brand }}</h1>
+                <p class="text-xs text-slate-500">Local Purchase Analysis</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto text-sm">
+            <div class="relative">
+                <input type="text" id="searchInput" placeholder="Search..."
+                    class="block w-full sm:w-48 rounded border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-xs py-1.5 pl-8">
+                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                    <svg class="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+
+            <select id="quickFilter"
+                class="block w-full sm:w-32 rounded border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-xs py-1.5">
+                <option value="all">All items</option>
+                <option value="critical">Critical Stock</option>
+                <option value="required">Required</option>
+                <option value="high-value">High Value</option>
+            </select>
+
+            <div class="text-xs text-slate-500 flex items-center whitespace-nowrap">
+                <span id="totalCount" class="font-medium text-slate-900 mx-1">{{ total_count }}</span> items
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <div class="relative">
+        <div id="loadingOverlay" class="absolute inset-0 bg-white/50 z-20 hidden flex justify-center items-start pt-20">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded shadow-sm max-h-[82vh]">
+            <table class="min-w-full divide-y divide-slate-200 text-xs whitespace-nowrap">
+                <thead class="bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-center sticky top-0 z-10 shadow-sm">
+                    <tr class="divide-x divide-slate-200">
+                        
+                        <th scope="col" class="px-1 py-2 sticky left-0 bg-slate-50 z-20 text-left w-20 cursor-pointer hover:bg-slate-100 group border-r border-slate-200" onclick="sortData('item_code')">
+                            <div class="flex items-center justify-between">
+                                Code
+                                <span class="text-slate-400 sort-icon" data-col="item_code"></span>
+                            </div>
+                        </th>
+                        
+                        <th class="px-1 py-2 text-left w-24 cursor-pointer hover:bg-slate-100 group" onclick="sortData('upc_code')">
+                            <div class="flex items-center gap-1">
+                                UPC
+                                <span class="text-slate-400 sort-icon" data-col="upc_code"></span>
+                            </div>
+                        </th>
+
+                        <!-- UPDATED: Increased min-width for Description -->
+                        <th class="px-1 py-2 text-left min-w-[220px] cursor-pointer hover:bg-slate-100 group" onclick="sortData('description')">
+                            <div class="flex items-center gap-1">
+                                Description
+                                <span class="text-slate-400 sort-icon" data-col="description"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 bg-blue-50 text-blue-800 cursor-pointer hover:bg-blue-100 group" onclick="sortData('current_stock_ras')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Stock<br>RAS
+                                <span class="text-blue-400 sort-icon" data-col="current_stock_ras"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-yellow-50 text-yellow-800 cursor-pointer hover:bg-yellow-100 group" onclick="sortData('current_stock_dip')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Stock<br>DIP
+                                <span class="text-yellow-600 sort-icon" data-col="current_stock_dip"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 cursor-pointer hover:bg-slate-100 group" onclick="sortData('sold_qty_2024')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Sold<br>2024
+                                <span class="text-slate-400 sort-icon" data-col="sold_qty_2024"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 bg-green-50 text-green-800 cursor-pointer hover:bg-green-100 group" onclick="sortData('contg')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                CONTG
+                                <span class="text-green-600 sort-icon" data-col="contg"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-yellow-50 text-yellow-800 cursor-pointer hover:bg-yellow-100 group" onclick="sortData('trdg')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                TRDG
+                                <span class="text-yellow-600 sort-icon" data-col="trdg"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 cursor-pointer hover:bg-slate-100 group" onclick="sortData('stores')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                STOR
+                                <span class="text-slate-400 sort-icon" data-col="stores"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 font-bold cursor-pointer hover:bg-slate-100 group" onclick="sortData('total_sold_qty_2025')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Sold<br>2025
+                                <span class="text-slate-400 sort-icon" data-col="total_sold_qty_2025"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 cursor-pointer hover:bg-slate-100 group" onclick="sortData('avg_15day_sales')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Avg 15Day<br>HO
+                                <span class="text-slate-400 sort-icon" data-col="avg_15day_sales"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 cursor-pointer hover:bg-slate-100 group" onclick="sortData('stock_sufficiency_months')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Suff<br>Mo
+                                <span class="text-slate-400 sort-icon" data-col="stock_sufficiency_months"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-yellow-50 text-yellow-800 cursor-pointer hover:bg-yellow-100 group" onclick="sortData('lpo_given')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                LPO<br>Given
+                                <span class="text-yellow-600 sort-icon" data-col="lpo_given"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-orange-50 text-orange-800 cursor-pointer hover:bg-orange-100 group" onclick="sortData('open_so_qty')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Open<br>SO
+                                <span class="text-orange-600 sort-icon" data-col="open_so_qty"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 cursor-pointer hover:bg-slate-100 group" onclick="sortData('stock_reqt_calcn')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Reqt<br>Calc
+                                <span class="text-slate-400 sort-icon" data-col="stock_reqt_calcn"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-yellow-400 text-yellow-900 border-x-2 border-yellow-500 font-bold cursor-pointer hover:bg-yellow-500 group" onclick="sortData('stock_requirement')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                STOCK<br>REQT
+                                <span class="text-yellow-900 sort-icon" data-col="stock_requirement"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 bg-yellow-50 text-red-600 font-bold cursor-pointer hover:bg-yellow-100 group" onclick="sortData('value')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Value
+                                <span class="text-red-400 sort-icon" data-col="value"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-blue-50 cursor-pointer hover:bg-blue-100 group" onclick="sortData('cost')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Cost
+                                <span class="text-blue-400 sort-icon" data-col="cost"></span>
+                            </div>
+                        </th>
+
+                        <th class="px-1 py-2 bg-yellow-50 text-yellow-800 cursor-pointer hover:bg-yellow-100 group" onclick="sortData('ho_per_lpo_qty')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                HO per<br>LPO
+                                <span class="text-yellow-600 sort-icon" data-col="ho_per_lpo_qty"></span>
+                            </div>
+                        </th>
+                        <th class="px-1 py-2 bg-blue-50 text-blue-800 cursor-pointer hover:bg-blue-100 group" onclick="sortData('stock_reqt_ras_stores')">
+                            <div class="flex items-center justify-center gap-0.5">
+                                Reqt<br>RAS/St
+                                <span class="text-blue-600 sort-icon" data-col="stock_reqt_ras_stores"></span>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody id="tableBody" class="bg-white divide-y divide-slate-200">
+                    {% include 'tracking/includes/local_purchase_rows.html' %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="paginationContainer" class="mt-2">
+        {% include 'tracking/includes/pagination_controls.html' %}
+    </div>
+</div>
+
+<script>
+    let state = {
+        brand: '{{ brand }}',
+        page: 1,
+        search: '',
+        filter: 'all',
+        sort: '{{ current_sort|default:"item_code" }}',
+        direction: '{{ current_direction|default:"asc" }}'
+    };
+
+    const searchInput = document.getElementById('searchInput');
+    const quickFilter = document.getElementById('quickFilter');
+    const tableBody = document.getElementById('tableBody');
+    const totalCount = document.getElementById('totalCount');
+    const paginationContainer = document.getElementById('paginationContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    async function fetchData() {
+        loadingOverlay.classList.remove('hidden');
+        const params = new URLSearchParams({
+            brand: state.brand,
+            page: state.page,
+            search: state.search,
+            filter: state.filter,
+            sort: state.sort,
+            direction: state.direction
+        });
+
+        try {
+            const response = await fetch(`${window.location.pathname}?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                tableBody.innerHTML = data.html;
+                paginationContainer.innerHTML = data.pagination;
+                totalCount.textContent = data.total_count;
+                updateSortIcons();
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            loadingOverlay.classList.add('hidden');
+        }
+    }
+
+    searchInput.addEventListener('input', debounce((e) => {
+        state.search = e.target.value;
+        state.page = 1;
+        fetchData();
+    }, 400));
+
+    quickFilter.addEventListener('change', (e) => {
+        state.filter = e.target.value;
+        state.page = 1;
+        fetchData();
+    });
+
+    window.changePage = function(pageNum) {
+        state.page = pageNum;
+        fetchData();
+        document.querySelector('table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.sortData = function(column) {
+        if (state.sort === column) {
+            state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            state.sort = column;
+            state.direction = 'asc';
+        }
+        state.page = 1;
+        fetchData();
+    };
+
+    function updateSortIcons() {
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            icon.innerHTML = '';
+            if (icon.dataset.col === state.sort) {
+                const p = state.direction === 'asc' 
+                    ? 'M5 15l7-7 7 7' 
+                    : 'M19 9l-7 7-7-7';
+                icon.innerHTML = `<svg class="w-3 h-3 text-brand-600 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${p}" /></svg>`;
+            }
+        });
+    }
+
+    updateSortIcons();
+</script>
+{% endblock %}

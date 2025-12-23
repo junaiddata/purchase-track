@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.db import transaction, models
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
-from .models import ItemMaster, Quotation, QuotationItem, Release, Shipment, Manufacturer
+from .models import ItemMaster, Quotation, QuotationItem, Release, Shipment, Manufacturer, LocalPurchaseItem
 from .forms import UploadItemForm, QuotationForm, QuotationItemFormSet, ShipmentForm, ReleaseForm, ManufacturerForm, UploadManufacturerForm
 from django.http import JsonResponse
 import json
@@ -575,6 +575,207 @@ def run_stock_import(request):
     finally:
         out.close()
     return redirect('dashboard')
+
+@login_required
+@admin_required
+def local_purchase_dashboard(request):
+    """Dashboard to select a brand/sheet."""
+    brands = LocalPurchaseItem.objects.values_list('brand', flat=True).distinct().order_by('brand')
+    return render(request, 'tracking/local_purchase_dashboard.html', {'brands': brands})
+
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.shortcuts import render, redirect
+from django.template.loader import render_to_string
+from django.http import JsonResponse
+
+@login_required
+@admin_required
+def local_purchase_list(request):
+    """Table view for a selected brand with AJAX search, sort, and pagination."""
+    brand = request.GET.get('brand')
+    if not brand:
+        return redirect('local_purchase_dashboard')
+        
+    # Start with base queryset
+    items = LocalPurchaseItem.objects.filter(brand=brand)
+
+    # 1. Search Filter
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        items = items.filter(
+            Q(item_code__icontains=search_query) |
+            Q(upc_code__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+
+    # 2. Quick Filter (migrated from JS to Backend)
+    quick_filter = request.GET.get('filter', 'all')
+    if quick_filter == 'critical':
+        items = items.filter(stock_sufficiency_months__lt=1)
+    elif quick_filter == 'required':
+        # Assuming 'Stock Requirement' > 0 implies requirement exists
+        items = items.filter(stock_requirement__gt=0) 
+        # Note: Adjust field lookup based on your exact model type (int/str)
+    elif quick_filter == 'high-value':
+        items = items.filter(value__gt=5000)
+
+    # 3. Sorting
+    sort_by = request.GET.get('sort', 'item_code') # default sort
+    direction = request.GET.get('direction', 'asc')
+    
+    # Whitelist allowable sort fields to prevent errors
+    allowed_sort_fields = {
+        'item_code': 'item_code',
+        'upc_code': 'upc_code',
+        'description': 'description',
+        'current_stock_ras': 'current_stock_ras',
+        'current_stock_dip': 'current_stock_dip',
+        'sold_qty_2024': 'sold_qty_2024',
+        'contg': 'contg',
+        'trdg': 'trdg',
+        'stores': 'stores',
+        'total_sold_qty_2025': 'total_sold_qty_2025',
+        'avg_15day_sales': 'avg_15day_sales',
+        'stock_sufficiency_months': 'stock_sufficiency_months',
+        'lpo_given': 'lpo_given',
+        'open_so_qty': 'open_so_qty',
+        'stock_reqt_calcn': 'stock_reqt_calcn',
+        'stock_requirement': 'stock_requirement',
+        'value': 'value',
+        'cost': 'cost',
+        'ho_per_lpo_qty': 'ho_per_lpo_qty',
+        'stock_reqt_ras_stores': 'stock_reqt_ras_stores',
+    }
+    
+    sort_field = allowed_sort_fields.get(sort_by, 'item_code')
+    if direction == 'desc':
+        sort_field = f'-{sort_field}'
+    
+    items = items.order_by(sort_field)
+
+    # 4. Pagination (1000 items per page)
+    paginator = Paginator(items, 1000)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'items': page_obj,
+        'brand': brand,
+        'total_count': paginator.count,
+        'current_sort': sort_by,
+        'current_direction': direction,
+    }
+
+    # AJAX Handling: Return only the rows and pagination info
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('tracking/includes/local_purchase_rows.html', context, request=request)
+        pagination_html = render_to_string('tracking/includes/pagination_controls.html', context, request=request)
+        return JsonResponse({
+            'html': html, 
+            'pagination': pagination_html,
+            'total_count': paginator.count
+        })
+
+    return render(request, 'tracking/local_purchase_list.html', context)
+
+@login_required
+@admin_required
+def local_purchase_upload(request):
+    """View to upload multi-sheet Excel file."""
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        import os
+        from django.core.files.storage import FileSystemStorage
+        
+        excel_file = request.FILES['excel_file']
+        fs = FileSystemStorage()
+        filename = fs.save(excel_file.name, excel_file)
+        file_path = fs.path(filename)
+        
+        try:
+            with pd.ExcelFile(file_path) as xls:
+                sheet_names = xls.sheet_names
+                
+                # ALLOWED SHEETS WhiteList
+                ALLOWED_SHEETS = ['HEPWORTH', 'RAKTherm', 'VERA-PUMP', 'PEGLER', 'OTHERS']
+                
+                total_imported = 0
+                
+                for sheet_name in sheet_names:
+                    # Filter strictly by allowed names (case-insensitive check)
+                    # We check if the sheet name (upper) exists in our allowed list (upper)
+                    if sheet_name not in ALLOWED_SHEETS and sheet_name.upper() not in [s.upper() for s in ALLOWED_SHEETS]:
+                        continue
+                    
+                    df = pd.read_excel(xls, sheet_name=sheet_name)
+                    
+                    # Normalize headers: replace newlines and multiple spaces with single space
+                    import re
+                    df.columns = [re.sub(r'\s+', ' ', str(col)).strip() for col in df.columns]
+                    
+                    # Check column existence
+                    if 'CODE' not in df.columns:
+                        continue 
+                        
+                    # Delete existing for this brand (using the sheet name as brand)
+                    LocalPurchaseItem.objects.filter(brand=sheet_name).delete()
+                    
+                    items_to_create = []
+                    for _, row in df.iterrows():
+                        def get_val(col, default=0, type_func=int):
+                            val = row.get(col)
+                            if pd.isna(val) or val == '':
+                                return default
+                            try:
+                                # Handle string inputs like " - " or "N/A"
+                                if isinstance(val, str) and not val.replace('.', '', 1).isdigit():
+                                    return default
+                                return type_func(val)
+                            except:
+                                return default
+                        
+                        item = LocalPurchaseItem(
+                            brand=sheet_name,
+                            item_code=str(row.get('CODE', '')).strip(),
+                            upc_code=str(row.get('UPC CODE', '')) if not pd.isna(row.get('UPC CODE')) else '',
+                            description=str(row.get('DESCRIPTION', '')) if not pd.isna(row.get('DESCRIPTION')) else '',
+                            
+                            current_stock_ras=get_val('Current Stock RAS'),
+                            current_stock_dip=get_val('Current Stock DIP'),
+                            sold_qty_2024=get_val('Sold Qty 2024'),
+                            
+                            contg=get_val('CONTG.'),
+                            trdg=get_val('TRDG.'),
+                            stores=get_val('STORES'),
+                            
+                            total_sold_qty_2025=get_val('TOTAL Sold Qty 2025'),
+                            avg_15day_sales=get_val('Avg 15Day Sales HO 2025', 0.0, float),
+                            stock_sufficiency_months=get_val('STOCK Sufficiency Month', 0.0, float),
+                            lpo_given=get_val('LPO Given'),
+                            open_so_qty=get_val('OPEN SO QTY'),
+                            stock_reqt_calcn=get_val('STOCK Reqt Calcn'),
+                            stock_requirement=get_val('STOCK REQUIREMENT'),
+                            value=get_val('VALUE', 0.0, float),
+                            cost=get_val('COST', 0.0, float),
+                            ho_per_lpo_qty=get_val('HO PER LPO QTY', 0.0, float),
+                            stock_reqt_ras_stores=get_val('Stock Reqt RAS/ Stores', 0.0, float),
+                        )
+                        items_to_create.append(item)
+                        
+                    LocalPurchaseItem.objects.bulk_create(items_to_create)
+                    total_imported += len(items_to_create)
+            
+            messages.success(request, f"Successfully imported {total_imported} items from {len(sheet_names)} sheets.")
+            
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                
+        return redirect('local_purchase_dashboard')
+        
+    return render(request, 'tracking/local_purchase_upload.html')
 
 def login_view(request):
     if request.method == 'POST':
