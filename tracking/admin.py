@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import ItemMaster, Quotation, QuotationItem, Shipment, Supplier, Manufacturer, UserProfile, Release
+from .models import IgnoreList, ItemMaster, Quotation, QuotationItem, Shipment, Supplier, Manufacturer, UserProfile, Release
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
@@ -45,3 +45,8 @@ class ReleaseAdmin(admin.ModelAdmin):
 class ManufacturerAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+
+@admin.register(IgnoreList)
+class IgnoreListAdmin(admin.ModelAdmin):
+    list_display = ('item_code',)
+    search_fields = ('item_code',)

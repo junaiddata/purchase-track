@@ -40,7 +40,7 @@ class Command(BaseCommand):
         for item in items_data:
             item_code = str(item.get("item_code", "")).strip()
 
-            if not item_code or item_code in ignore_codes:
+            if not item_code:
                 skipped += 1
                 continue
 
