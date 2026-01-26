@@ -36,10 +36,11 @@ class QuotationForm(forms.ModelForm):
 
     class Meta:
         model = Quotation
-        fields = ['reference_number', 'supplier_name', 'manufacturer', 'status']
+        fields = ['reference_number', 'supplier_name', 'manufacturer', 'currency', 'status']
         widgets = {
             'reference_number': forms.TextInput(attrs={'class': 'block w-full rounded-md border-0 py-1.5 pl-10 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'}),
             # supplier_name widget handled in __init__
+            'currency': forms.Select(attrs={'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'}),
             'status': forms.Select(attrs={'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'}),
         }
 
@@ -91,6 +92,33 @@ class ShipmentForm(forms.ModelForm):
         }
 
 class ReleaseForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        self.quotation_item = kwargs.pop('quotation_item', None)
+        super().__init__(*args, **kwargs)
+        
+        # Set max attribute on quantity_released field if we have the item
+        if self.quotation_item:
+            balance_to_release = self.quotation_item.balance_to_release
+            if balance_to_release > 0:
+                self.fields['quantity_released'].widget.attrs['max'] = balance_to_release
+                self.fields['quantity_released'].widget.attrs['min'] = 1
+    
+    def clean_quantity_released(self):
+        quantity_released = self.cleaned_data.get('quantity_released')
+        
+        if self.quotation_item and quantity_released is not None:
+            balance_to_release = self.quotation_item.balance_to_release
+            
+            if quantity_released <= 0:
+                raise forms.ValidationError("Quantity released must be greater than 0.")
+            
+            if quantity_released > balance_to_release:
+                raise forms.ValidationError(
+                    f"Cannot release more than available balance. Available to release: {balance_to_release}"
+                )
+        
+        return quantity_released
+    
     class Meta:
         model = Release
         fields = ['quantity_released', 'release_date', 'expected_arrival_date', 'container_info']

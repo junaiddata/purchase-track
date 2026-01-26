@@ -16,6 +16,7 @@ urlpatterns = [
     path('sales/', views.sales_dashboard, name='sales_dashboard'),
     path('sales/track/', views.sales_firm_track, name='sales_firm_track'),
     path('api/items-by-firm/', views.get_items_by_firm, name='get_items_by_firm'),
+    path('api/upload-quotation-items/', views.upload_quotation_items_excel, name='upload_quotation_items_excel'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     

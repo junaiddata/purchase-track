@@ -16,20 +16,40 @@
 
     <div class="bg-white shadow sm:rounded-lg">
         <div class="px-4 py-5 sm:p-6">
-            <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-3 sm:gap-x-4 mb-6">
+            <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-4 sm:gap-x-4 mb-6">
                 <div>
                     <dt class="text-sm font-medium text-slate-500">Quantity Ordered</dt>
                     <dd class="mt-1 text-lg font-semibold text-slate-900">{{ item.quantity_ordered }}</dd>
                 </div>
                 <div>
-                    <dt class="text-sm font-medium text-slate-500">Total Released So Far</dt>
+                    <dt class="text-sm font-medium text-slate-500">In Transit</dt>
                     <dd class="mt-1 text-lg font-semibold text-orange-600">{{ item.quantity_in_transit }}</dd>
                 </div>
                 <div>
-                    <dt class="text-sm font-medium text-slate-500">Balance (Not yet Received)</dt>
-                    <dd class="mt-1 text-lg font-bold text-red-600">{{ item.balance_quantity }}</dd>
+                    <dt class="text-sm font-medium text-slate-500">Received</dt>
+                    <dd class="mt-1 text-lg font-semibold text-green-600">{{ item.quantity_received }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-slate-500">Available to Release</dt>
+                    <dd class="mt-1 text-lg font-bold text-brand-600">{{ balance_to_release }}</dd>
                 </div>
             </div>
+            
+            {% if balance_to_release <= 0 %}
+            <div class="mb-6 rounded-md bg-red-50 p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">No quantity available to release</h3>
+                        <p class="mt-2 text-sm text-red-700">All ordered quantity has already been released or received.</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <form method="post" class="space-y-6">
                 {% csrf_token %}
@@ -56,6 +76,9 @@
                     <div class="mt-1">
                         {{ form.quantity_released }}
                     </div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Maximum available to release: <span class="font-semibold text-brand-600">{{ balance_to_release }}</span>
+                    </p>
                     {% if form.quantity_released.errors %}
                     <p class="text-red-500 text-xs mt-1">{{ form.quantity_released.errors.0 }}</p>
                     {% endif %}

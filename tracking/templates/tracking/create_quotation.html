@@ -141,6 +141,26 @@
                         </p>
                     </div>
 
+                    <!-- Currency -->
+                    <div class="space-y-2">
+                        <label for="{{ form.currency.id_for_label }}" class="block text-sm font-semibold text-slate-700">
+                            Currency <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            {{ form.currency }}
+                        </div>
+                        {% if form.currency.errors %}
+                        <p class="text-red-500 text-xs flex items-center mt-1">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                            {{ form.currency.errors.0 }}
+                        </p>
+                        {% endif %}
+                    </div>
+
                     <!-- Status -->
                     <div class="space-y-2">
                         <label for="{{ form.status.id_for_label }}" class="block text-sm font-semibold text-slate-700">
@@ -178,16 +198,28 @@
                                 </svg>
                             </div>
                         </div>
-                        <div class="ml-4">
-                            <h3 class="text-lg font-semibold text-slate-900">Line Items</h3>
-                            <p class="text-sm text-slate-500">Add products or services to this quotation</p>
-                        </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-semibold text-slate-900">Line Items</h3>
+                        <p class="text-sm text-slate-500">Add products or services to this quotation</p>
                     </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="button" id="upload-excel-btn"
+                        class="inline-flex items-center px-3 py-1.5 border border-brand-300 rounded-lg text-sm font-medium text-brand-700 bg-white hover:bg-brand-50 hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-all duration-150">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                            </path>
+                        </svg>
+                        Upload Excel
+                    </button>
+                    <input type="file" id="excel-file-input" accept=".xlsx,.xls" class="hidden">
                     <span id="item-count"
                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
                         <span id="item-count-number">{{ formset.forms|length }}</span> item(s)
                     </span>
                 </div>
+            </div>
             </div>
 
             {{ formset.management_form }}
@@ -846,6 +878,192 @@
 
             showToast('success', 'Item Added', 'A new item row has been added.');
         });
+
+        // =====================
+        // Helper: Add Item Row with Data
+        // =====================
+        function addItemRowWithData(itemData) {
+            const formCount = parseInt(totalForms.value);
+            const rowToClone = container.querySelector('.item-row');
+            
+            if (!rowToClone) {
+                // If no existing rows, we need to create from template
+                showToast('info', 'Info', 'Please add at least one item manually first.');
+                return null;
+            }
+
+            const newRow = rowToClone.cloneNode(true);
+            newRow.classList.remove('deleting', 'deleted');
+            newRow.style.display = '';
+            newRow.removeAttribute('data-index');
+
+            newRow.querySelectorAll('input, select').forEach(input => {
+                const name = input.name.replace(/items-\d+-/, `items-${formCount}-`);
+                const id = input.id.replace(/items-\d+-/, `items-${formCount}-`);
+                input.name = name;
+                input.id = id;
+                
+                if (input.type === 'checkbox') {
+                    input.checked = false;
+                } else if (input.name.endsWith('-item')) {
+                    // Handle item select
+                    if (input.tomselect) {
+                        input.tomselect.destroy();
+                        delete input.tomselect;
+                    }
+                    input.classList.remove('tomselected', 'ts-hidden-accessible');
+
+                    const wrapper = input.nextElementSibling;
+                    if (wrapper && wrapper.classList.contains('ts-wrapper')) {
+                        wrapper.remove();
+                    }
+
+                    // Populate with current firm items or all items if needed
+                    input.innerHTML = '<option value="">Select an item...</option>';
+                    
+                    // Add the specific item option (always add this item from Excel)
+                    const opt = document.createElement('option');
+                    opt.value = itemData.item_id;
+                    opt.text = `${itemData.item_code} - ${itemData.item_description} - ${itemData.item_upvc}`;
+                    opt.selected = true;
+                    input.appendChild(opt);
+                    
+                    // Also add other firm items if available
+                    if (currentFirmItems.length > 0) {
+                        currentFirmItems.forEach(item => {
+                            if (item.id !== itemData.item_id) {
+                                const otherOpt = document.createElement('option');
+                                otherOpt.value = item.id;
+                                otherOpt.text = `${item.item_code} - ${item.item_description} - ${item.item_upvc}`;
+                                input.appendChild(otherOpt);
+                            }
+                        });
+                    }
+                } else if (input.name.endsWith('-quantity_ordered')) {
+                    input.value = itemData.quantity_ordered || '';
+                } else if (input.name.endsWith('-rate')) {
+                    input.value = itemData.rate || '';
+                } else if (input.name.endsWith('-expected_delivery_date')) {
+                    input.value = '';
+                } else if (!input.name.endsWith('-id') && !input.name.endsWith('-DELETE')) {
+                    input.value = '';
+                }
+            });
+
+            // Clear any error messages
+            const errorDiv = newRow.querySelector('.bg-red-50');
+            if (errorDiv) {
+                errorDiv.closest('.px-6')?.remove();
+            }
+
+            container.appendChild(newRow);
+
+            // Initialize TomSelect on the new select
+            const newSelect = newRow.querySelector('select[name$="-item"]');
+            if (newSelect) {
+                const placeholder = currentFirmItems.length > 0 ? "Search for an item..." : "Select Supplier First";
+                initTomSelect(newSelect, placeholder);
+                
+                // Set the value after TomSelect is initialized
+                if (newSelect.tomselect) {
+                    newSelect.tomselect.setValue(itemData.item_id, true);
+                }
+            }
+
+            totalForms.value = formCount + 1;
+            updateItemCount();
+
+            return newRow;
+        }
+
+        // =====================
+        // Excel Upload Handler
+        // =====================
+        const uploadExcelBtn = document.getElementById('upload-excel-btn');
+        const excelFileInput = document.getElementById('excel-file-input');
+
+        if (uploadExcelBtn && excelFileInput) {
+            // Trigger file input when button is clicked
+            uploadExcelBtn.addEventListener('click', function() {
+                excelFileInput.click();
+            });
+
+            // Handle file selection
+            excelFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Validate file type
+                if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                    showToast('error', 'Invalid File', 'Please upload a .xlsx or .xls file');
+                    excelFileInput.value = '';
+                    return;
+                }
+
+                // Show loading overlay
+                loadingOverlay.classList.remove('hidden');
+
+                // Create FormData
+                const formData = new FormData();
+                formData.append('excel_file', file);
+
+                // Send AJAX request
+                fetch('/api/upload-quotation-items/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingOverlay.classList.add('hidden');
+                    excelFileInput.value = ''; // Reset file input
+
+                    if (data.success) {
+                        let addedCount = 0;
+                        const addedRows = [];
+
+                        // Add each item to the formset
+                        data.items.forEach(item => {
+                            const newRow = addItemRowWithData(item);
+                            if (newRow) {
+                                addedRows.push(newRow);
+                                addedCount++;
+                            }
+                        });
+
+                        // Scroll to first added row
+                        if (addedRows.length > 0) {
+                            addedRows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+
+                        // Show success message
+                        if (data.warnings && data.warnings.length > 0) {
+                            showToast('info', 
+                                `${addedCount} item(s) added`, 
+                                `${data.warnings.length} row(s) skipped. Check console for details.`);
+                            console.warn('Excel Upload Warnings:', data.warnings);
+                        } else {
+                            showToast('success', 
+                                'Excel Uploaded Successfully', 
+                                `${addedCount} item(s) added to quotation`);
+                        }
+                    } else {
+                        showToast('error', 'Upload Failed', data.error || 'Unknown error occurred');
+                        if (data.warnings) {
+                            console.warn('Excel Upload Warnings:', data.warnings);
+                        }
+                    }
+                })
+                .catch(error => {
+                    loadingOverlay.classList.add('hidden');
+                    excelFileInput.value = '';
+                    console.error('Excel upload error:', error);
+                    showToast('error', 'Upload Error', 'Failed to upload Excel file. Please try again.');
+                });
+            });
+        }
 
         // =====================
         // Form Submit Handler

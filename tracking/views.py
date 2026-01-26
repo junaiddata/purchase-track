@@ -116,24 +116,37 @@ def quotation_list(request):
 def release_item(request, pk):
     item = get_object_or_404(QuotationItem, pk=pk)
     
+    # Check if there's anything available to release
+    balance_to_release = item.balance_to_release
+    if balance_to_release <= 0:
+        messages.warning(request, f"No quantity available to release for {item.item.item_code}. Balance to release: {balance_to_release}")
+        return redirect('quotation_detail', pk=item.quotation.pk)
+    
     if request.method == 'POST':
-        form = ReleaseForm(request.POST)
+        form = ReleaseForm(request.POST, quotation_item=item)
         if form.is_valid():
-            with transaction.atomic():
-                release = form.save(commit=False)
-                release.quotation_item = item
-                release.save()
-                
-                # Update item? (quantity calculations are dynamic properties)
-                messages.success(request, f"Release created for {item.item.item_code}!")
-                return redirect('quotation_detail', pk=item.quotation.pk)
+            quantity_released = form.cleaned_data['quantity_released']
+            
+            # Double-check validation (defense in depth)
+            if quantity_released > balance_to_release:
+                form.add_error('quantity_released', f"Cannot release more than available balance ({balance_to_release})")
+            else:
+                with transaction.atomic():
+                    release = form.save(commit=False)
+                    release.quotation_item = item
+                    release.save()
+                    
+                    messages.success(request, f"Release created for {item.item.item_code}!")
+                    return redirect('quotation_detail', pk=item.quotation.pk)
     else:
-        # Pre-fill specific initial data if needed
-        form = ReleaseForm(initial={'quantity_released': item.balance_to_release})
+        # Pre-fill with available balance (but not more than available)
+        initial_quantity = min(item.balance_to_release, item.balance_to_release) if item.balance_to_release > 0 else 0
+        form = ReleaseForm(quotation_item=item, initial={'quantity_released': initial_quantity})
 
     return render(request, 'tracking/release_item.html', {
         'form': form,
-        'item': item
+        'item': item,
+        'balance_to_release': balance_to_release
     })
 
 @login_required
@@ -157,7 +170,13 @@ def receive_release(request, pk):
                 remarks=f"Auto-received from Release {release.container_info}"
             )
             
-            messages.success(request, "Release marked as Received and Stock updated.")
+            # Check if quotation is fully received and update status automatically
+            quotation = release.quotation_item.quotation
+            if quotation.check_and_update_status():
+                messages.success(request, f"Release received. Quotation {quotation.reference_number} status updated to COMPLETED - all items received!")
+            else:
+                messages.success(request, "Release marked as Received and Stock updated.")
+            
             return redirect('quotation_detail', pk=release.quotation_item.quotation.pk)
 
     return render(request, 'tracking/receive_release_confirm.html', {'release': release})
@@ -309,8 +328,11 @@ def receive_item(request, pk):
             shipment.save()
             messages.success(request, f"Received {shipment.quantity_received} of {item.item.item_code}")
             
-            # Check if fully received and update status if needed?
-            # For now, just redirect
+            # Check if quotation is fully received and update status automatically
+            quotation = item.quotation
+            if quotation.check_and_update_status():
+                messages.success(request, f"Quotation {quotation.reference_number} status updated to COMPLETED - all items received!")
+            
             return redirect('quotation_detail', pk=item.quotation.pk)
     else:
         form = ShipmentForm()
@@ -420,6 +442,10 @@ def sales_firm_track(request):
         'quotation_item__quotation',
         'quotation_item__quotation__manufacturer'
     ).order_by('container_info', 'expected_arrival_date')
+    
+    # Add calculated amounts for admin display
+    for release in in_transit_releases:
+        release.transit_amount = release.quantity_released * release.quotation_item.rate
 
     # 2. Received (History) with Pagination
     received_queryset = Release.objects.filter(
@@ -427,12 +453,27 @@ def sales_firm_track(request):
         is_received=True
     ).select_related(
         'quotation_item__item', 
-        'quotation_item__quotation'
+        'quotation_item__quotation',
+        'quotation_item__quotation__manufacturer'
+    ).prefetch_related(
+        'quotation_item__shipments'
     ).order_by('-release_date')
     
-    paginator = Paginator(received_queryset, 30) # Show 15 records per page
+    paginator = Paginator(received_queryset, 30) # Show 30 records per page
     page_number = request.GET.get('page')
     received_releases = paginator.get_page(page_number)
+    
+    # Add calculated amounts and received dates for admin display (after pagination)
+    for release in received_releases:
+        release.received_amount = release.quantity_released * release.quotation_item.rate
+        # Get received date from shipment if available
+        shipment = release.quotation_item.shipments.filter(
+            quantity_received=release.quantity_released
+        ).order_by('-received_date').first()
+        if shipment:
+            release.actual_received_date = shipment.received_date
+        else:
+            release.actual_received_date = release.release_date
     
     # 3. Pending (At Factory)
     all_firm_items = QuotationItem.objects.filter(
@@ -440,8 +481,13 @@ def sales_firm_track(request):
         quotation__status='CONFIRMED'
     ).select_related('item', 'quotation', 'quotation__manufacturer').order_by('expected_delivery_date')
     
-    # Filter for items with balance > 0
-    pending_items = [item for item in all_firm_items if item.balance_to_release > 0]
+    # Filter for items with balance > 0 and add calculated amounts for admin
+    pending_items = []
+    for item in all_firm_items:
+        if item.balance_to_release > 0:
+            # Add calculated amount for admin display
+            item.balance_amount = item.balance_to_release * item.rate
+            pending_items.append(item)
     
     # Get supplier logo
     supplier_logo = None
@@ -453,12 +499,16 @@ def sales_firm_track(request):
     except:
         pass
     
+    # Check if user is admin
+    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'ADMIN'
+    
     return render(request, 'tracking/sales_firm_track.html', {
         'firm': firm_name,
         'in_transit_releases': in_transit_releases, # Updated context variable
         'received_releases': received_releases,
         'pending_items': pending_items,
         'supplier_logo': supplier_logo,
+        'is_admin': is_admin,
     })
 
 @never_cache
@@ -470,6 +520,132 @@ def get_items_by_firm(request):
     
     items = ItemMaster.objects.filter(item_firm=firm).values('id', 'item_code', 'item_description', 'item_upvc').order_by('item_code')
     return JsonResponse({'items': list(items)})
+
+@login_required
+@admin_required
+def upload_quotation_items_excel(request):
+    """AJAX endpoint to upload Excel file with quotation items (itemcode, qty, rate)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST method allowed'})
+    
+    if 'excel_file' not in request.FILES:
+        return JsonResponse({'success': False, 'error': 'No file uploaded'})
+    
+    excel_file = request.FILES['excel_file']
+    
+    # Validate file extension
+    if not excel_file.name.endswith(('.xlsx', '.xls')):
+        return JsonResponse({'success': False, 'error': 'Invalid file type. Please upload .xlsx or .xls file'})
+    
+    try:
+        # Read Excel file - skip empty rows at the start
+        df = pd.read_excel(excel_file)
+        
+        # Drop completely empty rows (all NaN)
+        df = df.dropna(how='all')
+        
+        # Reset index after dropping empty rows
+        df = df.reset_index(drop=True)
+        
+        # Normalize column names (case-insensitive, handle spaces)
+        df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
+        
+        # Find column names (flexible matching)
+        itemcode_col = None
+        qty_col = None
+        rate_col = None
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if itemcode_col is None and ('itemcode' in col_lower or 'item_code' in col_lower):
+                itemcode_col = col
+            if qty_col is None and ('qty' in col_lower or 'quantity' in col_lower):
+                qty_col = col
+            if rate_col is None and col_lower == 'rate':
+                rate_col = col
+        
+        # Validate required columns
+        if not itemcode_col:
+            return JsonResponse({'success': False, 'error': 'Could not find itemcode column. Expected: itemcode, item_code, or Item Code'})
+        if not qty_col:
+            return JsonResponse({'success': False, 'error': 'Could not find quantity column. Expected: qty, quantity, or Quantity'})
+        if not rate_col:
+            return JsonResponse({'success': False, 'error': 'Could not find rate column. Expected: rate or Rate'})
+        
+        items = []
+        warnings = []
+        
+        # Process each row
+        for index, row in df.iterrows():
+            # Get itemcode value
+            itemcode = str(row[itemcode_col]).strip() if pd.notna(row[itemcode_col]) else ''
+            
+            # Skip if empty, NaN, or if it looks like a header row (matches common header variations)
+            if not itemcode or itemcode.lower() == 'nan':
+                warnings.append(f"Row {index + 2}: Skipped - empty itemcode")
+                continue
+            
+            # Skip if the itemcode value matches header column names (case-insensitive)
+            header_variations = ['itemcode', 'item_code', 'item code', 'item', 'code']
+            if itemcode.lower() in header_variations:
+                # This is likely a header row that pandas didn't recognize, skip it
+                continue
+            
+            # Try to find item in ItemMaster (case-insensitive match)
+            try:
+                item_master = ItemMaster.objects.get(item_code__iexact=itemcode)
+            except ItemMaster.DoesNotExist:
+                warnings.append(f"Row {index + 2}: Itemcode '{itemcode}' not found in database")
+                continue
+            except ItemMaster.MultipleObjectsReturned:
+                # If multiple found, take first one
+                item_master = ItemMaster.objects.filter(item_code__iexact=itemcode).first()
+            
+            # Get quantity (default to 0 if invalid)
+            try:
+                qty = int(float(row[qty_col])) if pd.notna(row[qty_col]) else 0
+            except (ValueError, TypeError):
+                qty = 0
+                warnings.append(f"Row {index + 2}: Invalid quantity for '{itemcode}', using 0")
+            
+            # Get rate (default to 0.0 if invalid)
+            try:
+                rate = float(row[rate_col]) if pd.notna(row[rate_col]) else 0.0
+            except (ValueError, TypeError):
+                rate = 0.0
+                warnings.append(f"Row {index + 2}: Invalid rate for '{itemcode}', using 0.0")
+            
+            # Add to items list
+            items.append({
+                'item_id': item_master.id,
+                'item_code': item_master.item_code,
+                'item_description': item_master.item_description,
+                'item_upvc': item_master.item_upvc or '',
+                'quantity_ordered': qty,
+                'rate': float(rate)
+            })
+        
+        if not items:
+            return JsonResponse({
+                'success': False,
+                'error': 'No valid items found in Excel file',
+                'warnings': warnings
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'items': items,
+            'warnings': warnings,
+            'count': len(items)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error processing Excel file: {str(e)}'
+        })
 
 # Manufacturer Management
 @login_required

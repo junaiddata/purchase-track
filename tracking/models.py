@@ -51,15 +51,44 @@ class Quotation(models.Model):
         ('CANCELLED', 'Cancelled'),
     ]
     
+    CURRENCY_CHOICES = [
+        ('USD', 'USD'),
+        ('EUR', 'EUR'),
+        ('AED', 'AED'),
+        ('GBP', 'GBP'),
+    ]
+    
     reference_number = models.CharField(max_length=50, unique=True)
     supplier_name = models.CharField(max_length=100, help_text="Brand/Firm name (e.g., PEGLER)")
     manufacturer = models.ForeignKey(Manufacturer, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD', help_text="Currency for this quotation")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 
     def __str__(self):
         return self.reference_number
+    
+    @property
+    def total_amount(self):
+        """Calculate total amount of quotation (sum of all line items: quantity * rate)"""
+        total = sum(item.quantity_ordered * item.rate for item in self.items.all())
+        return total
+    
+    def is_fully_received(self):
+        """Check if all items in the quotation are fully received"""
+        if not self.items.exists():
+            return False
+        return all(item.balance_quantity <= 0 for item in self.items.all())
+    
+    def check_and_update_status(self):
+        """Automatically update status to COMPLETED if all items are fully received"""
+        # Only auto-complete if not already COMPLETED or CANCELLED, and all items are received
+        if self.status not in ['COMPLETED', 'CANCELLED'] and self.is_fully_received():
+            self.status = 'COMPLETED'
+            self.save(update_fields=['status'])
+            return True
+        return False
 
 class QuotationItem(models.Model):
     quotation = models.ForeignKey(Quotation, related_name='items', on_delete=models.CASCADE)
@@ -86,6 +115,11 @@ class QuotationItem(models.Model):
     @property
     def balance_to_release(self):
         return self.quantity_ordered - (self.quantity_in_transit + self.quantity_received)
+    
+    @property
+    def line_total(self):
+        """Calculate line total (quantity * rate)"""
+        return self.quantity_ordered * self.rate
 
 class Release(models.Model):
     quotation_item = models.ForeignKey(QuotationItem, related_name='releases', on_delete=models.CASCADE)

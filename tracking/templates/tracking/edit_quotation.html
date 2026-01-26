@@ -128,6 +128,26 @@
                         </p>
                     </div>
 
+                    <!-- Currency -->
+                    <div class="space-y-2">
+                        <label for="{{ form.currency.id_for_label }}" class="block text-sm font-semibold text-slate-700">
+                            Currency <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            {{ form.currency }}
+                        </div>
+                        {% if form.currency.errors %}
+                        <p class="text-red-500 text-xs flex items-center mt-1">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                    clip-rule="evenodd"></path>
+                            </svg>
+                            {{ form.currency.errors.0 }}
+                        </p>
+                        {% endif %}
+                    </div>
+
                     <!-- Status -->
                     <div class="space-y-2">
                         <label for="{{ form.status.id_for_label }}" class="block text-sm font-semibold text-slate-700">
