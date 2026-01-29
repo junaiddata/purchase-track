@@ -20,15 +20,35 @@ class ManufacturerForm(forms.ModelForm):
         }
 
 class QuotationForm(forms.ModelForm):
+    supplier_name = forms.MultipleChoiceField(
+        required=True,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6',
+            'size': '5'
+        }),
+        help_text="Select one or more brands/firms"
+    )
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Get distinct firms from ItemMaster
         firms = ItemMaster.objects.values_list('item_firm', flat=True).distinct().order_by('item_firm')
-        # Create choices list: [('', 'Select Supplier'), ('FirmA', 'FirmA'), ...]
-        firm_choices = [('', 'Select Supplier')] + [(firm, firm) for firm in firms if firm]
+        # Create choices list: [('FirmA', 'FirmA'), ...]
+        firm_choices = [(firm, firm) for firm in firms if firm]
         
-        self.fields['supplier_name'].widget = forms.Select(attrs={'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'})
-        self.fields['supplier_name'].widget.choices = firm_choices
+        self.fields['supplier_name'].choices = firm_choices
+        
+        # If editing, set initial value from comma-separated string
+        if self.instance and self.instance.pk and self.instance.supplier_name:
+            selected_firms = [firm.strip() for firm in self.instance.supplier_name.split(',') if firm.strip()]
+            self.initial['supplier_name'] = selected_firms
+    
+    def clean_supplier_name(self):
+        # Convert list to comma-separated string for storage
+        selected_firms = self.cleaned_data.get('supplier_name', [])
+        if not selected_firms:
+            raise forms.ValidationError("Please select at least one brand/firm.")
+        return ', '.join(selected_firms)
         
         # Add nice styling to manufacturer select
         self.fields['manufacturer'].widget.attrs.update({'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'})

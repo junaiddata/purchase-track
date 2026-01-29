@@ -59,7 +59,7 @@ class Quotation(models.Model):
     ]
     
     reference_number = models.CharField(max_length=50, unique=True)
-    supplier_name = models.CharField(max_length=100, help_text="Brand/Firm name (e.g., PEGLER)")
+    supplier_name = models.TextField(help_text="Brand/Firm names (comma-separated, e.g., PEGLER, PEGLER-CHILLED)")
     manufacturer = models.ForeignKey(Manufacturer, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD', help_text="Currency for this quotation")
     created_at = models.DateTimeField(auto_now_add=True)

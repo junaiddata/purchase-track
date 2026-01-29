@@ -240,13 +240,16 @@ def create_quotation(request):
 def quotation_detail(request, pk):
     quotation = get_object_or_404(Quotation, pk=pk)
     
-    # Try to get supplier logo
+    # Try to get supplier logo (use first supplier if multiple)
     supplier_logo = None
     try:
         from .models import Supplier
-        supplier = Supplier.objects.filter(name=quotation.supplier_name).first()
-        if supplier and supplier.logo:
-            supplier_logo = supplier.logo
+        # Get first supplier name from comma-separated list
+        first_supplier_name = quotation.supplier_name.split(',')[0].strip() if quotation.supplier_name else None
+        if first_supplier_name:
+            supplier = Supplier.objects.filter(name=first_supplier_name).first()
+            if supplier and supplier.logo:
+                supplier_logo = supplier.logo
     except:
         pass
     

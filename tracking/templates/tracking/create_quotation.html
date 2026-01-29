@@ -677,8 +677,9 @@
             initTomSelect(selectElement, "Search for an item...");
         }
 
-        function fetchAndPopulateItems(firmName) {
-            if (!firmName) {
+        function fetchAndPopulateItems(firmNames) {
+            // Handle both single string and array of firm names
+            if (!firmNames || (Array.isArray(firmNames) && firmNames.length === 0)) {
                 currentFirmItems = [];
                 container.querySelectorAll('select[name$="-item"]').forEach(select => {
                     if (select.tomselect) select.tomselect.destroy();
@@ -688,10 +689,39 @@
                 return;
             }
 
-            fetch(`/api/items-by-firm/?firm=${encodeURIComponent(firmName)}`)
-                .then(response => response.json())
-                .then(data => {
-                    currentFirmItems = data.items;
+            // Convert single value to array
+            const firms = Array.isArray(firmNames) ? firmNames : [firmNames];
+            
+            // Fetch items from all selected firms
+            const fetchPromises = firms.map(firmName => 
+                fetch(`/api/items-by-firm/?firm=${encodeURIComponent(firmName)}`)
+                    .then(response => response.json())
+                    .then(data => data.items || [])
+            );
+
+            Promise.all(fetchPromises)
+                .then(results => {
+                    // Combine all items from all firms, removing duplicates by item ID
+                    const allItems = [];
+                    const seenIds = new Set();
+                    
+                    results.forEach(items => {
+                        items.forEach(item => {
+                            if (!seenIds.has(item.id)) {
+                                seenIds.add(item.id);
+                                allItems.push(item);
+                            }
+                        });
+                    });
+                    
+                    // Sort by item_code
+                    allItems.sort((a, b) => {
+                        if (a.item_code < b.item_code) return -1;
+                        if (a.item_code > b.item_code) return 1;
+                        return 0;
+                    });
+                    
+                    currentFirmItems = allItems;
                     container.querySelectorAll('select[name$="-item"]').forEach(select => {
                         populateSelect(select);
                     });
@@ -703,18 +733,22 @@
         }
 
         // =====================
-        // Supplier Change Handler
+        // Supplier Change Handler (Multiple Selection)
         // =====================
         if (supplierSelect) {
             supplierSelect.addEventListener('change', function () {
-                fetchAndPopulateItems(this.value);
-                if (this.value) {
-                    showToast('info', 'Supplier Selected', 'Items list has been updated.');
+                // Get all selected values
+                const selectedFirms = Array.from(this.selectedOptions).map(option => option.value);
+                fetchAndPopulateItems(selectedFirms);
+                if (selectedFirms.length > 0) {
+                    showToast('info', 'Suppliers Selected', `${selectedFirms.length} brand(s) selected. Items list updated.`);
                 }
             });
 
-            if (supplierSelect.value) {
-                fetchAndPopulateItems(supplierSelect.value);
+            // Initialize on page load
+            const selectedFirms = Array.from(supplierSelect.selectedOptions).map(option => option.value);
+            if (selectedFirms.length > 0) {
+                fetchAndPopulateItems(selectedFirms);
             } else {
                 container.querySelectorAll('select[name$="-item"]').forEach(select => {
                     select.innerHTML = '<option value="">Select Supplier First</option>';
