@@ -884,15 +884,23 @@
         // =====================
         function addItemRowWithData(itemData) {
             const formCount = parseInt(totalForms.value);
-            const rowToClone = container.querySelector('.item-row');
+            // Try to find an existing row (including hidden ones)
+            let rowToClone = container.querySelector('.item-row:not(.deleted)');
             
+            // If no visible row, try to find any row (even if hidden)
             if (!rowToClone) {
-                // If no existing rows, we need to create from template
-                showToast('info', 'Info', 'Please add at least one item manually first.');
+                rowToClone = container.querySelector('.item-row');
+            }
+            
+            // If still no row, we can't proceed
+            if (!rowToClone) {
+                console.error('No existing row found to clone');
+                showToast('error', 'Error', 'Please add at least one item manually first, then try uploading Excel.');
                 return null;
             }
-
+            
             const newRow = rowToClone.cloneNode(true);
+
             newRow.classList.remove('deleting', 'deleted');
             newRow.style.display = '';
             newRow.removeAttribute('data-index');
@@ -1015,8 +1023,29 @@
                         'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', response.headers);
+                    
+                    // Check if response is ok
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    // Try to parse JSON
+                    return response.text().then(text => {
+                        console.log('Response text:', text);
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            console.error('Response text:', text);
+                            throw new Error('Invalid JSON response from server');
+                        }
+                    });
+                })
                 .then(data => {
+                    console.log('Parsed data:', data);
                     loadingOverlay.classList.add('hidden');
                     excelFileInput.value = ''; // Reset file input
 
@@ -1024,14 +1053,33 @@
                         let addedCount = 0;
                         const addedRows = [];
 
+                        // Check if items array exists and has items
+                        if (!data.items || !Array.isArray(data.items)) {
+                            console.error('Invalid items array:', data.items);
+                            showToast('error', 'Upload Failed', 'Invalid response format from server');
+                            return;
+                        }
+
                         // Add each item to the formset
-                        data.items.forEach(item => {
-                            const newRow = addItemRowWithData(item);
-                            if (newRow) {
-                                addedRows.push(newRow);
-                                addedCount++;
+                        data.items.forEach((item, idx) => {
+                            console.log(`Processing item ${idx + 1}:`, item);
+                            try {
+                                const newRow = addItemRowWithData(item);
+                                if (newRow) {
+                                    addedRows.push(newRow);
+                                    addedCount++;
+                                    console.log(`Successfully added item ${idx + 1}`);
+                                } else {
+                                    console.warn(`Failed to add row for item ${idx + 1}:`, item);
+                                }
+                            } catch (err) {
+                                console.error(`Error adding item ${idx + 1}:`, err);
+                                console.error('Item data:', item);
+                                console.error('Error stack:', err.stack);
                             }
                         });
+                        
+                        console.log(`Total items processed: ${data.items.length}, Successfully added: ${addedCount}`);
 
                         // Scroll to first added row
                         if (addedRows.length > 0) {
@@ -1060,7 +1108,8 @@
                     loadingOverlay.classList.add('hidden');
                     excelFileInput.value = '';
                     console.error('Excel upload error:', error);
-                    showToast('error', 'Upload Error', 'Failed to upload Excel file. Please try again.');
+                    console.error('Error stack:', error.stack);
+                    showToast('error', 'Upload Error', `Failed to upload Excel file: ${error.message}`);
                 });
             });
         }

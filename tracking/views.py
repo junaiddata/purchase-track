@@ -577,10 +577,34 @@ def upload_quotation_items_excel(request):
         
         # Process each row
         for index, row in df.iterrows():
-            # Get itemcode value
-            itemcode = str(row[itemcode_col]).strip() if pd.notna(row[itemcode_col]) else ''
+            # Get itemcode value - handle Excel float conversion (e.g., "300242.0" -> "300242")
+            itemcode_raw = row[itemcode_col]
             
-            # Skip if empty, NaN, or if it looks like a header row (matches common header variations)
+            # Skip if NaN or empty
+            if pd.isna(itemcode_raw):
+                warnings.append(f"Row {index + 2}: Skipped - empty itemcode")
+                continue
+            
+            # Convert to string and handle float conversion
+            # If it's a float like 300242.0, convert to int first, then string
+            try:
+                # Try to convert to float first (handles "300242.0")
+                if isinstance(itemcode_raw, (int, float)):
+                    # If it's a number, convert to int (removes .0) then string
+                    itemcode = str(int(float(itemcode_raw)))
+                else:
+                    # It's already a string, but might be "300242.0"
+                    itemcode_str = str(itemcode_raw).strip()
+                    # Try to parse as float, then convert to int to remove .0
+                    try:
+                        itemcode = str(int(float(itemcode_str)))
+                    except (ValueError, TypeError):
+                        # If it's not a number, use as-is
+                        itemcode = itemcode_str
+            except (ValueError, TypeError):
+                itemcode = str(itemcode_raw).strip()
+            
+            # Skip if empty after conversion
             if not itemcode or itemcode.lower() == 'nan':
                 warnings.append(f"Row {index + 2}: Skipped - empty itemcode")
                 continue
@@ -608,9 +632,10 @@ def upload_quotation_items_excel(request):
                 qty = 0
                 warnings.append(f"Row {index + 2}: Invalid quantity for '{itemcode}', using 0")
             
-            # Get rate (default to 0.0 if invalid)
+            # Get rate (default to 0.0 if invalid) and round to 2 decimal places
             try:
                 rate = float(row[rate_col]) if pd.notna(row[rate_col]) else 0.0
+                rate = round(rate, 2)  # Round to 2 decimal places
             except (ValueError, TypeError):
                 rate = 0.0
                 warnings.append(f"Row {index + 2}: Invalid rate for '{itemcode}', using 0.0")
@@ -622,7 +647,7 @@ def upload_quotation_items_excel(request):
                 'item_description': item_master.item_description,
                 'item_upvc': item_master.item_upvc or '',
                 'quantity_ordered': qty,
-                'rate': float(rate)
+                'rate': round(float(rate), 2)  # Ensure 2 decimal places
             })
         
         if not items:
@@ -641,10 +666,12 @@ def upload_quotation_items_excel(request):
         
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        error_trace = traceback.format_exc()
+        print(f"Excel upload error: {error_trace}")  # Log to console for debugging
         return JsonResponse({
             'success': False,
-            'error': f'Error processing Excel file: {str(e)}'
+            'error': f'Error processing Excel file: {str(e)}',
+            'traceback': error_trace if request.user.is_superuser else None  # Only show traceback to superusers
         })
 
 # Manufacturer Management
