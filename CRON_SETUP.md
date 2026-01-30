@@ -37,7 +37,7 @@ Test that the script works:
 
    **Or with better logging (recommended):**
    ```bash
-   */5 * * * * /full/path/to/schedule_stock_update.sh >> /var/log/stock_update.log 2>&1 || echo "$(date): Stock update failed" >> /var/log/stock_update_errors.log
+   */5 * * * * /var/www/purchase-track/schedule_stock_update.sh >> /var/log/purchase_stock_update.log 2>&1 || echo "$(date): Stock update failed" >> /var/log/stock_update_errors.log
    ```
 
 3. **Save and exit** (in vi: press `Esc`, type `:wq`, press Enter)
