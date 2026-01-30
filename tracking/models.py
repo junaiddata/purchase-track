@@ -70,6 +70,16 @@ class Quotation(models.Model):
         return self.reference_number
     
     @property
+    def supplier_name_display(self):
+        """Format supplier name for display: show first brand + count if multiple"""
+        if not self.supplier_name:
+            return ""
+        brands = [b.strip() for b in self.supplier_name.split(',') if b.strip()]
+        if len(brands) > 1:
+            return f"{brands[0]} +{len(brands) - 1} more"
+        return brands[0] if brands else ""
+    
+    @property
     def total_amount(self):
         """Calculate total amount of quotation (sum of all line items: quantity * rate)"""
         total = sum(item.quantity_ordered * item.rate for item in self.items.all())

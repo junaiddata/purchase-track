@@ -127,7 +127,8 @@
                                 onclick="window.location='{% url 'quotation_detail' quote.pk %}';">
                                 <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
                                     {{ quote.reference_number }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-500">{{ quote.supplier_name }}
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
+                                    {{ quote.supplier_name_display }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
                                     {{ quote.created_at|date:"M d, Y" }}</td>

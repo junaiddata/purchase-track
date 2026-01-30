@@ -84,7 +84,7 @@
                                     {{ quote.manufacturer.name|default:"-" }}
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-700 font-medium">
-                                    {{ quote.supplier_name }}
+                                    {{ quote.supplier_name_display }}
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                                     <form action="{% url 'update_quotation_status' quote.pk %}" method="POST"
