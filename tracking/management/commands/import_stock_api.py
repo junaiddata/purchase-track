@@ -46,7 +46,8 @@ class Command(BaseCommand):
 
             cost_price = safe_float(item.get("cost_price"))
             price = safe_float(item.get("minimum_selling_price"))
-            stock = int(safe_float(item.get("stock_quantity")))
+            # Use total_stock from API (stock_quantity may not exist)
+            stock = int(safe_float(item.get("total_stock", item.get("stock_quantity", 0))))
 
             obj = ItemMaster(
                 item_code=item_code,

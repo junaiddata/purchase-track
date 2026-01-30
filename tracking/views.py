@@ -505,6 +505,29 @@ def sales_firm_track(request):
     # Check if user is admin
     is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'ADMIN'
     
+    # 4. Add stock information from ItemMaster model (updated by background process)
+    # This is much faster than API calls and works even if API is down
+    if is_admin:
+        # Add stock information to in_transit_releases
+        for release in in_transit_releases:
+            release.current_stock = release.quotation_item.item.item_stock
+        
+        # Add stock information to received_releases
+        for release in received_releases:
+            release.current_stock = release.quotation_item.item.item_stock
+        
+        # Add stock information to pending_items
+        for item in pending_items:
+            item.current_stock = item.item.item_stock
+    else:
+        # For non-admin users, set current_stock to None
+        for release in in_transit_releases:
+            release.current_stock = None
+        for release in received_releases:
+            release.current_stock = None
+        for item in pending_items:
+            item.current_stock = None
+    
     return render(request, 'tracking/sales_firm_track.html', {
         'firm': firm_name,
         'in_transit_releases': in_transit_releases, # Updated context variable
