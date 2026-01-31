@@ -4,29 +4,10 @@ from tracking.models import ItemMaster, IgnoreList
 from django.core.cache import cache
 
 class Command(BaseCommand):
-    help = "Import items from Website A, excluding those in IgnoreList (DB based)"
+    help = "Import items from stock API and sold quantity API, excluding those in IgnoreList (DB based)"
 
     def handle(self, *args, **kwargs):
-        # 1. Load ignore list from DB
-        ignore_codes = set(
-            IgnoreList.objects.values_list("item_code", flat=True)
-        )
-
-        # 2. Fetch items from Website A JSON API
-        url = "https://stock.junaidworld.com/api/stock"
-        try:
-            self.stdout.write(f"Fetching data from {url}...")
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-            items_data = response.json()
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Failed to fetch data: {e}"))
-            return
-
-        # Use a dict to deduplicate by item_code in case API returns duplicates
-        items_dict = {}
-        skipped = 0
-
+        # Helper function for safe float conversion
         def safe_float(value):
             """Convert to float safely; return 0 if empty, invalid, or None."""
             try:
@@ -36,8 +17,50 @@ class Command(BaseCommand):
             except (TypeError, ValueError):
                 return 0.0
 
+        # 1. Load ignore list from DB
+        ignore_codes = set(
+            IgnoreList.objects.values_list("item_code", flat=True)
+        )
+
+        # 2. Fetch items from Stock API
+        stock_url = "https://stock.junaidworld.com/api/stock"
+        try:
+            self.stdout.write(f"Fetching stock data from {stock_url}...")
+            stock_response = requests.get(stock_url, timeout=30)
+            stock_response.raise_for_status()
+            stock_data = stock_response.json()
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to fetch stock data: {e}"))
+            return
+
+        # 3. Fetch sold quantity data from API
+        sold_url = "https://do.junaidworld.com/api/items/unique-qty"
+        sold_data_dict = {}
+        try:
+            self.stdout.write(f"Fetching sold quantity data from {sold_url}...")
+            sold_response = requests.get(sold_url, timeout=30)
+            sold_response.raise_for_status()
+            sold_data = sold_response.json()
+            
+            # Convert to dict for easy lookup by item_code
+            if isinstance(sold_data, dict) and "results" in sold_data:
+                for item in sold_data["results"]:
+                    item_code = str(item.get("item_code", "")).strip()
+                    if item_code and item_code != "-NULL-":
+                        total_qty = safe_float(item.get("total_qty", 0))
+                        sold_data_dict[item_code] = int(total_qty)
+                self.stdout.write(f"Loaded {len(sold_data_dict)} sold quantity records")
+            else:
+                self.stdout.write(self.style.WARNING("Sold quantity API returned unexpected format"))
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to fetch sold quantity data: {e}. Continuing with stock data only..."))
+
+        # Use a dict to deduplicate by item_code in case API returns duplicates
+        items_dict = {}
+        skipped = 0
+
         self.stdout.write("Processing items for update/creation...")
-        for item in items_data:
+        for item in stock_data:
             item_code = str(item.get("item_code", "")).strip()
 
             if not item_code:
@@ -48,6 +71,8 @@ class Command(BaseCommand):
             price = safe_float(item.get("minimum_selling_price"))
             # Use total_stock from API (stock_quantity may not exist)
             stock = int(safe_float(item.get("total_stock", item.get("stock_quantity", 0))))
+            # Get sold quantity from the second API, default to 0 if not found
+            total_qty = sold_data_dict.get(item_code, 0)
 
             obj = ItemMaster(
                 item_code=item_code,
@@ -57,6 +82,7 @@ class Command(BaseCommand):
                 item_firm=item.get("manufacturer", "") or "Unknown",
                 item_price=price,
                 item_stock=stock,
+                total_qty=total_qty,
                 uom=item.get("uom", "Nos")
             )
             # This handles duplicates in the API source: last one wins
@@ -73,7 +99,7 @@ class Command(BaseCommand):
                 unique_fields=['item_code'],
                 update_fields=[
                     'item_description', 'item_upvc', 'item_cost', 
-                    'item_firm', 'item_price', 'item_stock', 'uom'
+                    'item_firm', 'item_price', 'item_stock', 'total_qty', 'uom'
                 ]
             )
 

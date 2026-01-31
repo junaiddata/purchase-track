@@ -79,23 +79,25 @@
                 <table class="min-w-full divide-y divide-slate-200 searchable-table text-xs">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                                 Container</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Item Details</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 PO Ref</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Qty</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Stock</th>
                             {% if is_admin %}
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                Sold</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Rate</th>
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Amount</th>
                             {% endif %}
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Expected</th>
                         </tr>
                     </thead>
@@ -103,17 +105,17 @@
                         {% for release in in_transit_releases %}
                         <tr class="hover:bg-orange-50/20 transition-colors group">
                             <!-- Container -->
-                            <td class="px-3 py-2">
-                                <div class="flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 10.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-7Z" /><path d="M19.38 5.64a.5.5 0 0 1 .45.28l1.75 4a.5.5 0 0 1 .05.2v4.88a1.5 1.5 0 0 1-1.5 1.5h-.13a2.5 2.5 0 0 1-4.74 0H9.74a2.5 2.5 0 0 1-4.74 0H4.5v-7.5a.5.5 0 0 1 .5-.5h14.38ZM17.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm-10 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /></svg>
-                                    <div class="min-w-0">
-                                        <div class="text-xs font-semibold text-slate-900 truncate">{{ release.container_info|default:"TBD / LCL" }}</div>
-                                        <div class="text-[10px] text-slate-500 truncate">Mfg: {{ release.quotation_item.quotation.manufacturer.name|default:"-" }}</div>
+                            <td class="px-2 py-2 max-w-[120px]">
+                                <div class="flex items-start gap-1">
+                                    <svg class="w-2.5 h-2.5 text-slate-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.5 10.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-7Z" /><path d="M19.38 5.64a.5.5 0 0 1 .45.28l1.75 4a.5.5 0 0 1 .05.2v4.88a1.5 1.5 0 0 1-1.5 1.5h-.13a2.5 2.5 0 0 1-4.74 0H9.74a2.5 2.5 0 0 1-4.74 0H4.5v-7.5a.5.5 0 0 1 .5-.5h14.38ZM17.5 15a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm-10 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /></svg>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-[10px] font-medium text-slate-900 leading-tight break-words">{{ release.container_info|default:"TBD / LCL" }}</div>
+                                        <div class="text-[9px] text-slate-500 leading-tight break-words">Mfg: {{ release.quotation_item.quotation.manufacturer.name|default:"-" }}</div>
                                     </div>
                                 </div>
                             </td>
                             <!-- Item -->
-                            <td class="px-3 py-2 min-w-[200px]">
+                            <td class="px-2 py-2 min-w-[180px]">
                                 <div class="flex flex-col">
                                     <span class="text-xs font-semibold text-slate-900">{{ release.quotation_item.item.item_code }}</span>
                                     <span class="text-[11px] text-slate-600 leading-tight break-words" title="{{ release.quotation_item.item.item_description }}">
@@ -125,39 +127,45 @@
                                 </div>
                             </td>
                             <!-- PO Ref -->
-                            <td class="px-3 py-2 whitespace-nowrap">
-                                <span class="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono border border-slate-200">
+                            <td class="px-2 py-2 whitespace-nowrap">
+                                <span class="bg-slate-100 px-1 py-0.5 rounded text-[10px] font-mono border border-slate-200">
                                     {{ release.quotation_item.quotation.reference_number }}
                                 </span>
                             </td>
                             <!-- Qty -->
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
-                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">
                                     {{ release.quantity_released }}
                                 </span>
                             </td>
                             <!-- Current Stock -->
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
-                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold {% if release.current_stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold {% if release.current_stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                                     {{ release.current_stock|default:0|floatformat:0 }}
                                 </span>
                             </td>
                             {% if is_admin %}
+                            <!-- Sold Stock -->
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
+                                    {{ release.sold_stock|default:0|floatformat:0 }}
+                                </span>
+                            </td>
                             <!-- Rate -->
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <span class="text-xs font-medium text-slate-700">
                                     {{ release.quotation_item.quotation.get_currency_display }} {{ release.quotation_item.rate|floatformat:2 }}
                                 </span>
                             </td>
                             <!-- Amount -->
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <span class="text-xs font-bold text-brand-600">
                                     {{ release.quotation_item.quotation.get_currency_display }} {{ release.transit_amount|floatformat:2 }}
                                 </span>
                             </td>
                             {% endif %}
                             <!-- Arrival -->
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <div class="flex flex-col items-end">
                                     <span class="text-xs font-medium text-slate-900 flex items-center gap-0.5">
                                         <svg class="w-2.5 h-2.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -199,25 +207,26 @@
                 <table class="min-w-full divide-y divide-slate-200 text-xs">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Details</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Container</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">PO Ref</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Qty</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Details</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Container</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">PO Ref</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Qty</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
                             {% if is_admin %}
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Sold</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
                             {% endif %}
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 bg-white">
                         {% for release in received_releases %}
                         <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-600">
+                            <td class="px-2 py-2 whitespace-nowrap text-xs text-slate-600">
                                 {{ release.actual_received_date|date:"M d, Y" }}
                             </td>
-                            <td class="px-3 py-2 min-w-[200px]">
+                            <td class="px-2 py-2 min-w-[200px]">
                                 <div class="flex flex-col">
                                     <span class="text-xs font-semibold text-slate-900">{{ release.quotation_item.item.item_code }}</span>
                                     <span class="text-[11px] text-slate-600 leading-tight break-words">{{ release.quotation_item.item.item_description }}</span>
@@ -226,28 +235,34 @@
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
+                            <td class="px-2 py-2 text-xs text-slate-500 hidden sm:table-cell max-w-[100px]">
                                 <div class="flex flex-col">
-                                    <span class="font-medium text-slate-700">{{ release.container_info|default:"-" }}</span>
-                                    <span class="text-[10px] text-slate-400">Mfg: {{release.quotation_item.quotation.manufacturer_name|default:"-"}}</span>
+                                    <span class="text-[10px] font-medium text-slate-700 leading-tight break-words">{{ release.container_info|default:"-" }}</span>
+                                    <span class="text-[9px] text-slate-400 leading-tight break-words">Mfg: {{release.quotation_item.quotation.manufacturer_name|default:"-"}}</span>
                                 </div>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
+                            <td class="px-2 py-2 whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
                                 <span class="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono">{{ release.quotation_item.quotation.reference_number|default:"-" }}</span>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">
                                     +{{ release.quantity_released }}
                                 </span>
                             </td>
                             <!-- Current Stock -->
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold {% if release.current_stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                                     {{ release.current_stock|default:0|floatformat:0 }}
                                 </span>
                             </td>
                             {% if is_admin %}
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <!-- Sold Stock -->
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
+                                    {{ release.sold_stock|default:0|floatformat:0 }}
+                                </span>
+                            </td>
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <div class="flex flex-col items-end">
                                     <span class="text-xs font-bold text-brand-600">
                                         {{ release.quotation_item.quotation.get_currency_display }} {{ release.received_amount|floatformat:2 }}
@@ -256,7 +271,7 @@
                                 </div>
                             </td>
                             {% endif %}
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <span class="text-emerald-600 font-medium text-[10px]">Delivered</span>
                             </td>
                         </tr>
@@ -266,7 +281,7 @@
             </div>
             
             <!-- Pagination Controls -->
-            <div class="bg-slate-50 px-3 py-2 border-t border-slate-200 flex items-center justify-between text-xs">
+            <div class="bg-slate-50 px-2 py-2 border-t border-slate-200 flex items-center justify-between text-xs">
                 <div class="text-slate-500">
                     Page <span class="font-medium">{{ received_releases.number }}</span> of <span class="font-medium">{{ received_releases.paginator.num_pages }}</span>
                 </div>
@@ -309,22 +324,23 @@
                 <table class="min-w-full divide-y divide-slate-200 searchable-table text-xs">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Details</th>
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Manufacturer</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Balance Qty</th>
-                            <th scope="col" class="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Details</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Manufacturer</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Balance Qty</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
                             {% if is_admin %}
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Sold</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rate</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
                             {% endif %}
-                            <th scope="col" class="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">PO Ref</th>
-                            <th scope="col" class="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Expected</th>
+                            <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">PO Ref</th>
+                            <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Expected</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 bg-white">
                         {% for item in pending_items %}
                         <tr class="hover:bg-amber-50/30 transition-colors">
-                            <td class="px-3 py-2 min-w-[200px]">
+                            <td class="px-2 py-2 min-w-[180px]">
                                 <div class="flex flex-col">
                                     <span class="text-xs font-semibold text-slate-900">{{ item.item.item_code }}</span>
                                     <span class="text-[11px] text-slate-600 leading-tight break-words">{{ item.item.item_description }}</span>
@@ -333,36 +349,42 @@
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500 hidden md:table-cell">
+                            <td class="px-2 py-2 whitespace-nowrap text-xs text-slate-500 hidden md:table-cell">
                                 {{ item.quotation.manufacturer.name|default:"-" }}
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">
                                     {{ item.balance_to_release }}
                                 </span>
                             </td>
                             <!-- Current Stock -->
-                            <td class="px-3 py-2 whitespace-nowrap text-center">
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold {% if item.current_stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                                     {{ item.current_stock|default:0|floatformat:0 }}
                                 </span>
                             </td>
                             {% if is_admin %}
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <!-- Sold Stock -->
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
+                                    {{ item.sold_stock|default:0|floatformat:0 }}
+                                </span>
+                            </td>
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <span class="text-xs font-medium text-slate-700">
                                     {{ item.quotation.get_currency_display }} {{ item.rate|floatformat:2 }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <td class="px-2 py-2 whitespace-nowrap text-right">
                                 <span class="text-xs font-bold text-brand-600">
                                     {{ item.quotation.get_currency_display }} {{ item.balance_amount|floatformat:2 }}
                                 </span>
                             </td>
                             {% endif %}
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
+                            <td class="px-2 py-2 whitespace-nowrap text-xs text-slate-500 hidden sm:table-cell">
                                 <span class="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">{{ item.quotation.reference_number }}</span>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-right text-xs text-slate-500">
+                            <td class="px-2 py-2 whitespace-nowrap text-right text-xs text-slate-500">
                                 {{ item.expected_delivery_date|date:"M d, Y"|default:"<span class='text-slate-400 italic'>Not set</span>" }}
                             </td>
                         </tr>

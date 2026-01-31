@@ -510,14 +510,23 @@ def sales_firm_track(request):
     # Add stock information to in_transit_releases
     for release in in_transit_releases:
         release.current_stock = release.quotation_item.item.item_stock
+        # Add sold stock (admin only)
+        if is_admin:
+            release.sold_stock = release.quotation_item.item.total_qty
     
     # Add stock information to received_releases
     for release in received_releases:
         release.current_stock = release.quotation_item.item.item_stock
+        # Add sold stock (admin only)
+        if is_admin:
+            release.sold_stock = release.quotation_item.item.total_qty
     
     # Add stock information to pending_items
     for item in pending_items:
         item.current_stock = item.item.item_stock
+        # Add sold stock (admin only)
+        if is_admin:
+            item.sold_stock = item.item.total_qty
     
     return render(request, 'tracking/sales_firm_track.html', {
         'firm': firm_name,

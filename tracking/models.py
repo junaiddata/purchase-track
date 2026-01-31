@@ -18,6 +18,7 @@ class ItemMaster(models.Model):
     item_description = models.TextField()
     item_firm = models.CharField(max_length=100, help_text="Manufacturer/Brand (e.g. PEGLER)", db_index=True)
     item_stock = models.IntegerField(default=0, help_text="Available Stock")
+    total_qty = models.IntegerField(default=0, help_text="Total Sold Quantity")
     uom = models.CharField(max_length=20, default="Nos")
     # New fields for API Sync
     item_upvc = models.CharField(max_length=50, blank=True, null=True, help_text="UPC Code")
