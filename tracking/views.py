@@ -548,6 +548,570 @@ def get_items_by_firm(request):
     return JsonResponse({'items': list(items)})
 
 @login_required
+def consolidated_view(request):
+    """
+    Consolidated view showing all items for a firm with:
+    - Expected arrival date columns (with quantities)
+    - Total Qty On The Way (released but not received)
+    - Total Qty Pending at Factory (not yet released)
+    First shows firm selection, then the consolidated table.
+    """
+    from collections import defaultdict
+    from datetime import datetime
+    
+    firm_name = request.GET.get('firm')
+    
+    # If no firm selected, show firm selection page
+    if not firm_name:
+        # Get firms that have active QuotationItems
+        firm_names = QuotationItem.objects.filter(
+            quotation__status__in=['CONFIRMED', 'COMPLETED']
+        ).values_list('item__item_firm', flat=True).distinct().order_by('item__item_firm')
+        
+        # Get supplier logos
+        from .models import Supplier
+        suppliers = {s.name: s for s in Supplier.objects.filter(name__in=firm_names)}
+        
+        firms_with_logos = [
+            {'name': firm, 'logo': suppliers.get(firm).logo if suppliers.get(firm) and suppliers.get(firm).logo else None}
+            for firm in firm_names
+        ]
+        
+        return render(request, 'tracking/consolidated_firm_select.html', {'firms': firms_with_logos})
+    
+    # Get all quotation items for this firm that have orders (including fully received)
+    quotation_items = QuotationItem.objects.filter(
+        item__item_firm=firm_name,
+        quotation__status__in=['CONFIRMED', 'COMPLETED']
+    ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
+    
+    # Check if user is admin
+    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'ADMIN'
+    
+    # Build consolidated data structure
+    # Key: (item_code, item_description, item_id)
+    # Value: {
+    #   'dates': {date: quantity} - only for on the way items,
+    #   'on_the_way': sum of releases where is_received=False,
+    #   'pending_at_factory': balance_to_release,
+    #   'total_qty': on_the_way + pending_at_factory,
+    #   'stock': value,
+    #   'sold_stock': value,
+    #   'is_fully_received': boolean - True if all items received
+    # }
+    consolidated_data = {}
+    all_dates = set()
+    
+    for q_item in quotation_items:
+        # Calculate on the way (released but not received)
+        on_the_way = q_item.releases.filter(is_received=False).aggregate(
+            total=Sum('quantity_released')
+        )['total'] or 0
+        
+        # Calculate pending at factory (balance_to_release) - ensure non-negative
+        pending_at_factory = max(0, q_item.balance_to_release)
+        
+        # Check if fully received (no pending or in-transit)
+        is_fully_received = (on_the_way == 0 and pending_at_factory == 0)
+        
+        item = q_item.item
+        key = (item.item_code, item.item_description, item.id)
+        
+        if key not in consolidated_data:
+            consolidated_data[key] = {
+                'dates': defaultdict(int),
+                'on_the_way': 0,
+                'pending_at_factory': 0,
+                'total_qty': 0,
+                'stock': item.item_stock or 0,
+                'sold_stock': item.total_qty or 0 if is_admin else None,
+                'reorder_qty': item.reorder_qty or 0,
+                'is_fully_received': True,  # Will be set to False if any order is not fully received
+            }
+        
+        # If this order is not fully received, mark the item as not fully received
+        if not is_fully_received:
+            consolidated_data[key]['is_fully_received'] = False
+        
+        # Get only releases that are on the way (not received) grouped by expected_arrival_date
+        releases_on_way = q_item.releases.filter(is_received=False)
+        for release in releases_on_way:
+            if release.expected_arrival_date:
+                # Use shorter date format for compact display
+                date_str = release.expected_arrival_date.strftime('%b %d %Y')
+                consolidated_data[key]['dates'][date_str] += release.quantity_released
+                all_dates.add(date_str)
+        
+        # Add quantities
+        consolidated_data[key]['on_the_way'] += on_the_way
+        consolidated_data[key]['pending_at_factory'] += pending_at_factory
+        consolidated_data[key]['total_qty'] += (on_the_way + pending_at_factory) 
+    
+    # Sort dates chronologically
+    sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
+    
+    # Convert to list for template
+    table_data = []
+    for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
+        # Create a list of quantities matching the sorted_dates order
+        date_qty_list = [data['dates'].get(date, 0) for date in sorted_dates]
+        row = {
+            'item_code': item_code,
+            'item_description': item_description,
+            'item_id': item_id,
+            'on_the_way': data['on_the_way'],
+            'pending_at_factory': data['pending_at_factory'],
+            'total_qty': data['total_qty'],
+            'stock': data['stock'],
+            'sold_stock': data['sold_stock'],
+            'reorder_qty': data['reorder_qty'],
+            'date_quantities': date_qty_list,  # List matching sorted_dates order
+            'is_fully_received': data['is_fully_received'],  # True if all orders for this item are received
+        }
+        table_data.append(row)
+    
+    # Get supplier logo
+    supplier_logo = None
+    try:
+        from .models import Supplier
+        supplier = Supplier.objects.filter(name=firm_name).first()
+        if supplier and supplier.logo:
+            supplier_logo = supplier.logo
+    except:
+        pass
+    
+    return render(request, 'tracking/consolidated_view.html', {
+        'firm': firm_name,
+        'table_data': table_data,
+        'dates': sorted_dates,
+        'supplier_logo': supplier_logo,
+        'is_admin': is_admin,
+    })
+
+@login_required
+@admin_required
+def update_reorder_qty(request):
+    """AJAX endpoint to update reorder quantity for an item"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST allowed'})
+    
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        reorder_qty = data.get('reorder_qty', 0)
+        
+        if not item_id:
+            return JsonResponse({'success': False, 'error': 'Item ID required'})
+        
+        item = ItemMaster.objects.get(id=item_id)
+        item.reorder_qty = int(reorder_qty) if reorder_qty else 0
+        item.save(update_fields=['reorder_qty'])
+        
+        return JsonResponse({'success': True, 'reorder_qty': item.reorder_qty})
+    except ItemMaster.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Item not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@admin_required
+def reset_reorder_qty(request):
+    """AJAX endpoint to reset all reorder quantities for a firm to 0"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST allowed'})
+    
+    try:
+        data = json.loads(request.body)
+        firm_name = data.get('firm')
+        
+        if not firm_name:
+            return JsonResponse({'success': False, 'error': 'Firm name required'})
+        
+        # Reset all items for this firm
+        updated_count = ItemMaster.objects.filter(item_firm=firm_name).update(reorder_qty=0)
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'Reset {updated_count} items to 0',
+            'updated_count': updated_count
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@admin_required
+def export_consolidated_excel(request):
+    """Export consolidated view to Excel"""
+    import openpyxl
+    import openpyxl.utils
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from django.http import HttpResponse
+    from collections import defaultdict
+    from datetime import datetime
+    
+    firm_name = request.GET.get('firm')
+    search_query = request.GET.get('search', '').strip().lower()
+    
+    if not firm_name:
+        return HttpResponse("Firm name required", status=400)
+    
+    # Get data (same logic as consolidated_view)
+    quotation_items = QuotationItem.objects.filter(
+        item__item_firm=firm_name,
+        quotation__status__in=['CONFIRMED', 'COMPLETED']
+    ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
+    
+    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'ADMIN'
+    
+    consolidated_data = {}
+    all_dates = set()
+    
+    for q_item in quotation_items:
+        on_the_way = q_item.releases.filter(is_received=False).aggregate(total=Sum('quantity_released'))['total'] or 0
+        pending_at_factory = max(0, q_item.balance_to_release)
+        
+        # Check if fully received (no pending or in-transit)
+        is_fully_received = (on_the_way == 0 and pending_at_factory == 0)
+        
+        item = q_item.item
+        key = (item.item_code, item.item_description, item.id)
+        
+        # Apply search filter
+        if search_query:
+            if search_query not in item.item_code.lower() and search_query not in item.item_description.lower():
+                continue
+        
+        if key not in consolidated_data:
+            consolidated_data[key] = {
+                'dates': defaultdict(int),
+                'on_the_way': 0,
+                'pending_at_factory': 0,
+                'total_qty': 0,
+                'stock': item.item_stock or 0,
+                'sold_stock': item.total_qty or 0 if is_admin else None,
+                'reorder_qty': item.reorder_qty or 0,
+                'is_fully_received': True,  # Will be set to False if any order is not fully received
+            }
+        
+        # If this order is not fully received, mark the item as not fully received
+        if not is_fully_received:
+            consolidated_data[key]['is_fully_received'] = False
+        
+        releases_on_way = q_item.releases.filter(is_received=False)
+        for release in releases_on_way:
+            if release.expected_arrival_date:
+                date_str = release.expected_arrival_date.strftime('%b %d %Y')
+                consolidated_data[key]['dates'][date_str] += release.quantity_released
+                all_dates.add(date_str)
+        
+        consolidated_data[key]['on_the_way'] += on_the_way
+        consolidated_data[key]['pending_at_factory'] += pending_at_factory
+        consolidated_data[key]['total_qty'] += (on_the_way + pending_at_factory)
+    
+    sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
+    
+    # Create workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"{firm_name[:20]} Consolidated"
+    
+    # Styles
+    header_font = Font(bold=True, size=10)
+    header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Headers
+    headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Stock']
+    if is_admin:
+        headers += ['Sold Stock', 'Reorder Qty']
+    else:
+        headers += ['Reorder Qty']
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+    
+    # Data rows
+    row_num = 2
+    for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
+        col = 1
+        ws.cell(row=row_num, column=col, value=item_code).border = thin_border
+        col += 1
+        # Item name cell with wrap text enabled
+        item_name_cell = ws.cell(row=row_num, column=col, value=item_description)
+        item_name_cell.border = thin_border
+        item_name_cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+        col += 1
+        
+        # Show '-' for fully received items
+        if data.get('is_fully_received', False):
+            for date in sorted_dates:
+                ws.cell(row=row_num, column=col, value='-').border = thin_border
+                col += 1
+            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value=data['stock']).border = thin_border
+            col += 1
+            if is_admin:
+                ws.cell(row=row_num, column=col, value=data['sold_stock'] if data['sold_stock'] is not None else '-').border = thin_border
+                col += 1
+            ws.cell(row=row_num, column=col, value=data['reorder_qty']).border = thin_border
+        else:
+            for date in sorted_dates:
+                qty = data['dates'].get(date, 0)
+                ws.cell(row=row_num, column=col, value=qty if qty > 0 else '-').border = thin_border
+                col += 1
+            ws.cell(row=row_num, column=col, value=data['on_the_way'] if data['on_the_way'] > 0 else '-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value=data['pending_at_factory'] if data['pending_at_factory'] > 0 else '-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value=data['total_qty'] if data['total_qty'] > 0 else '-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value=data['stock']).border = thin_border
+            col += 1
+            if is_admin:
+                ws.cell(row=row_num, column=col, value=data['sold_stock'] if data['sold_stock'] is not None else '-').border = thin_border
+                col += 1
+            ws.cell(row=row_num, column=col, value=data['reorder_qty']).border = thin_border
+        
+        row_num += 1
+    
+    # Adjust column widths - make item name column wider
+    ws.column_dimensions['A'].width = 12  # Item Code
+    ws.column_dimensions['B'].width = 60  # Item Name - increased from 40 to 60 for full names
+    
+    # Set widths for date columns
+    date_start_col = 3  # Column C (after Code and Name)
+    for i in range(len(sorted_dates)):
+        col_letter = openpyxl.utils.get_column_letter(date_start_col + i)
+        ws.column_dimensions[col_letter].width = 12
+    
+    # Set widths for remaining columns
+    remaining_start = date_start_col + len(sorted_dates)
+    remaining_cols = ['In Transit', 'To Be Released', 'Total Qty', 'Stock']
+    if is_admin:
+        remaining_cols += ['Sold Stock', 'Reorder Qty']
+    else:
+        remaining_cols += ['Reorder Qty']
+    
+    for i, col_name in enumerate(remaining_cols):
+        col_letter = openpyxl.utils.get_column_letter(remaining_start + i)
+        if col_name in ['In Transit', 'To Be Released', 'Total Qty']:
+            ws.column_dimensions[col_letter].width = 12
+        elif col_name in ['Stock', 'Sold Stock', 'Reorder Qty']:
+            ws.column_dimensions[col_letter].width = 10
+        else:
+            ws.column_dimensions[col_letter].width = 12
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="{firm_name}_consolidated_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+@admin_required
+def export_consolidated_pdf(request):
+    """Export consolidated view to PDF"""
+    from django.http import HttpResponse
+    from collections import defaultdict
+    from datetime import datetime
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.units import inch
+    from io import BytesIO
+    
+    firm_name = request.GET.get('firm')
+    search_query = request.GET.get('search', '').strip().lower()
+    
+    if not firm_name:
+        return HttpResponse("Firm name required", status=400)
+    
+    # Get data (same logic as consolidated_view)
+    quotation_items = QuotationItem.objects.filter(
+        item__item_firm=firm_name,
+        quotation__status__in=['CONFIRMED', 'COMPLETED']
+    ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
+    
+    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'ADMIN'
+    
+    consolidated_data = {}
+    all_dates = set()
+    
+    for q_item in quotation_items:
+        on_the_way = q_item.releases.filter(is_received=False).aggregate(total=Sum('quantity_released'))['total'] or 0
+        pending_at_factory = max(0, q_item.balance_to_release)
+        
+        # Check if fully received (no pending or in-transit)
+        is_fully_received = (on_the_way == 0 and pending_at_factory == 0)
+        
+        item = q_item.item
+        key = (item.item_code, item.item_description, item.id)
+        
+        # Apply search filter
+        if search_query:
+            if search_query not in item.item_code.lower() and search_query not in item.item_description.lower():
+                continue
+        
+        if key not in consolidated_data:
+            consolidated_data[key] = {
+                'dates': defaultdict(int),
+                'on_the_way': 0,
+                'pending_at_factory': 0,
+                'total_qty': 0,
+                'stock': item.item_stock or 0,
+                'sold_stock': item.total_qty or 0 if is_admin else None,
+                'reorder_qty': item.reorder_qty or 0,
+                'is_fully_received': True,  # Will be set to False if any order is not fully received
+            }
+        
+        # If this order is not fully received, mark the item as not fully received
+        if not is_fully_received:
+            consolidated_data[key]['is_fully_received'] = False
+        
+        releases_on_way = q_item.releases.filter(is_received=False)
+        for release in releases_on_way:
+            if release.expected_arrival_date:
+                date_str = release.expected_arrival_date.strftime('%b %d %Y')
+                consolidated_data[key]['dates'][date_str] += release.quantity_released
+                all_dates.add(date_str)
+        
+        consolidated_data[key]['on_the_way'] += on_the_way
+        consolidated_data[key]['pending_at_factory'] += pending_at_factory
+        consolidated_data[key]['total_qty'] += (on_the_way + pending_at_factory)
+    
+    sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=0.3*inch, rightMargin=0.3*inch)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=14, spaceAfter=12)
+    
+    elements.append(Paragraph(f"{firm_name} - Import Purchase Report", title_style))
+    elements.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
+    elements.append(Spacer(1, 12))
+    
+    # Build table data with Paragraph for text wrapping
+    # Create a style for item names that allows wrapping
+    item_name_style = ParagraphStyle(
+        'ItemName',
+        parent=styles['Normal'],
+        fontSize=7,
+        leading=8,
+        leftIndent=2,
+        rightIndent=2,
+        wordWrap='CJK'  # Allows word wrapping
+    )
+    
+    headers = ['Code', 'Item Name'] + [d[:6] for d in sorted_dates] + ['Transit', 'Pending', 'Total', 'Stock']
+    if is_admin:
+        headers += ['Sold', 'Reorder']
+    else:
+        headers += ['Reorder']
+    
+    table_data = [headers]
+    
+    for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
+        # Use Paragraph for item description to enable text wrapping
+        # Escape special characters for XML/PDF
+        item_desc_escaped = item_description.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        item_name_para = Paragraph(item_desc_escaped, item_name_style)
+        
+        # Show '-' for fully received items
+        if data.get('is_fully_received', False):
+            row = [item_code, item_name_para]
+            for date in sorted_dates:
+                row.append('-')
+            row.extend(['-', '-', '-', data['stock']])
+            if is_admin:
+                row.append(data['sold_stock'] if data['sold_stock'] is not None else '-')
+            row.append(data['reorder_qty'])
+        else:
+            row = [item_code, item_name_para]
+            for date in sorted_dates:
+                qty = data['dates'].get(date, 0)
+                row.append(qty if qty > 0 else '-')
+            row.extend([
+                data['on_the_way'] if data['on_the_way'] > 0 else '-',
+                data['pending_at_factory'] if data['pending_at_factory'] > 0 else '-',
+                data['total_qty'] if data['total_qty'] > 0 else '-',
+                data['stock']
+            ])
+            if is_admin:
+                row.append(data['sold_stock'] if data['sold_stock'] is not None else '-')
+            row.append(data['reorder_qty'])
+        
+        table_data.append(row)
+    
+    # Create table with wider column for item name
+    # Calculate available width (landscape A4 width - margins)
+    # landscape(A4) returns (height, width), so we use [1] for width
+    available_width = landscape(A4)[1] - (0.3 * inch * 2)  # Subtract left and right margins
+    date_col_width = 35
+    fixed_cols_width = 55 + 250 + 40 + 40 + 35 + 35  # Code + Item Name + Transit + Pending + Total + Stock
+    if is_admin:
+        fixed_cols_width += 35 + 40  # Sold + Reorder
+    else:
+        fixed_cols_width += 40  # Reorder
+    
+    # Adjust item name width if we have many date columns
+    item_name_width = 250
+    if len(sorted_dates) > 0:
+        date_cols_width = len(sorted_dates) * date_col_width
+        remaining = available_width - fixed_cols_width - date_cols_width
+        if remaining > 0:
+            item_name_width += remaining
+        elif remaining < 0:
+            # Need to reduce item name width
+            item_name_width = max(200, 250 + remaining)
+    
+    col_widths = [55, item_name_width] + [date_col_width] * len(sorted_dates) + [40, 40, 35, 35]
+    if is_admin:
+        col_widths += [35, 40]
+    else:
+        col_widths += [40]
+    
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E2E8F0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # Item name left-aligned
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top align for wrapped text
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{firm_name}_consolidated_{datetime.now().strftime("%Y%m%d")}.pdf"'
+    return response
+
+@login_required
 @admin_required
 def upload_quotation_items_excel(request):
     """AJAX endpoint to upload Excel file with quotation items (itemcode, qty, rate)"""

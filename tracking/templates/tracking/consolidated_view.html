@@ -1,0 +1,399 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-[95vw] mx-auto py-4 px-2 sm:px-4 lg:px-6 bg-slate-50 min-h-screen">
+    <!-- Header -->
+    <div class="mb-4">
+        <nav class="flex mb-3" aria-label="Breadcrumb">
+            <ol class="flex items-center space-x-2">
+                <li>
+                    <a href="{% url 'consolidated_view' %}" class="text-slate-400 hover:text-slate-500 transition-colors">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path>
+                        </svg>
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg class="flex-shrink-0 h-5 w-5 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                        <a href="{% url 'consolidated_view' %}" class="ml-2 text-sm font-medium text-slate-500 hover:text-slate-700">Firms</a>
+                    </div>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg class="flex-shrink-0 h-5 w-5 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span class="ml-2 text-sm font-medium text-slate-800" aria-current="page">{{ firm }}</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 flex items-center gap-3 flex-1">
+                {% if supplier_logo %}
+                <div class="flex-shrink-0">
+                    <img src="{{ supplier_logo.url }}" alt="{{ firm }}" class="h-10 w-10 rounded-lg object-contain bg-white border border-slate-100 p-1 shadow-sm">
+                </div>
+                {% endif %}
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 tracking-tight">{{ firm }}</h1>
+                    <p class="text-slate-500 text-xs mt-0.5">Consolidated Order View</p>
+                </div>
+            </div>
+            
+            <!-- Search and Export -->
+            <div class="flex items-center gap-2">
+                <!-- Search Input -->
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Search item..." 
+                           class="w-48 pl-8 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
+                    <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                
+                <!-- Export Excel -->
+                <a href="{% url 'export_consolidated_excel' %}?firm={{ firm }}" id="exportExcelBtn"
+                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Excel
+                </a>
+                
+                <!-- Export PDF -->
+                <a href="{% url 'export_consolidated_pdf' %}?firm={{ firm }}" id="exportPdfBtn"
+                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    PDF
+                </a>
+                
+                <!-- Reset Reorder Qty -->
+                <button type="button" id="resetReorderBtn"
+                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Reset Reorder
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consolidated Table -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-xs">
+                <thead class="bg-slate-50 sticky top-0 z-10">
+                    <tr>
+                        <th scope="col" class="px-1.5 py-1.5 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider sticky left-0 bg-slate-50 z-20 w-[80px]">
+                            Item Code</th>
+                        <th scope="col" class="px-1.5 py-1.5 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider sticky left-[80px] bg-slate-50 z-20 min-w-[150px] max-w-[150px]">
+                            Item Name</th>
+                        {% for date in dates %}
+                        <th scope="col" class="px-1 py-1 text-center text-[8px] font-semibold text-slate-500 uppercase tracking-wider w-[65px] min-w-[65px]">
+                            <div class="leading-tight break-words">{{ date }}</div>
+                        </th>
+                        {% endfor %}
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-orange-50 w-[65px]">
+                            <div class="leading-tight">In<br>Transit</div>
+                        </th>
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-amber-50 w-[70px]">
+                            <div class="leading-tight">To Be<br>Released</div>
+                        </th>
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[55px]">
+                            <div class="leading-tight">Total<br>Qty</div>
+                        </th>
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[50px]">
+                            Stock
+                        </th>
+                        {% if is_admin %}
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[60px]">
+                            <div class="leading-tight">Sold<br>Stock</div>
+                        </th>
+                        {% endif %}
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-purple-50 w-[70px]">
+                            <div class="leading-tight">Reorder<br>Qty</div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                    {% for row in table_data %}
+                    <tr class="hover:bg-slate-50 transition-colors {% if row.is_fully_received %}bg-slate-50/50{% endif %}">
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-900 sticky left-0 {% if row.is_fully_received %}bg-slate-50/50{% else %}bg-white{% endif %} z-10 w-[80px]">
+                            {{ row.item_code }}
+                            {% if row.is_fully_received %}
+                            <span class="ml-0.5 text-[8px] text-green-600">✓</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-1.5 py-1.5 text-[10px] text-slate-600 leading-tight break-words sticky left-[80px] {% if row.is_fully_received %}bg-slate-50/50{% else %}bg-white{% endif %} z-10 min-w-[150px] max-w-[150px]">
+                            {{ row.item_description }}
+                        </td>
+                        <!-- Date columns -->
+                        {% for qty in row.date_quantities %}
+                        <td class="px-1 py-1 whitespace-nowrap text-center w-[65px]">
+                            {% if row.is_fully_received %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% elif qty > 0 %}
+                            <span class="inline-flex items-center px-0.5 py-0.5 rounded text-[9px] font-semibold bg-blue-100 text-blue-700">
+                                {{ qty }}
+                            </span>
+                            {% else %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <!-- Total Qty On The Way -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-orange-50 w-[65px]">
+                            {% if row.is_fully_received %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% elif row.on_the_way > 0 %}
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold bg-orange-100 text-orange-700">
+                                {{ row.on_the_way }}
+                            </span>
+                            {% else %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% endif %}
+                        </td>
+                        <!-- Total Qty Pending at Factory -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-amber-50 w-[70px]">
+                            {% if row.is_fully_received %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% elif row.pending_at_factory > 0 %}
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-700">
+                                {{ row.pending_at_factory }}
+                            </span>
+                            {% else %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% endif %}
+                        </td>
+                        <!-- Total Qty -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-slate-100 w-[55px]">
+                            {% if row.is_fully_received %}
+                            <span class="text-[9px] text-slate-300">-</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-800">
+                                {{ row.total_qty }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-slate-100 w-[50px]">
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold {% if row.stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                                {{ row.stock|default:0|floatformat:0 }}
+                            </span>
+                        </td>
+                        {% if is_admin %}
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-slate-100 w-[60px]">
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold bg-blue-100 text-blue-700">
+                                {{ row.sold_stock|default:0|floatformat:0 }}
+                            </span>
+                        </td>
+                        {% endif %}
+                        <!-- Reorder Qty (Editable) -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-purple-50 w-[70px]">
+                            <input type="number" 
+                                   class="reorder-input w-14 px-1 py-0.5 text-[9px] text-center border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 bg-white"
+                                   data-item-id="{{ row.item_id }}"
+                                   value="{{ row.reorder_qty|default:0 }}"
+                                   min="0"
+                                   placeholder="0">
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{% if is_admin %}{{ dates|length|add:7 }}{% else %}{{ dates|length|add:6 }}{% endif %}" class="px-6 py-8 text-center text-slate-500">
+                            No items found for this firm.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom scrollbar for horizontal scrolling */
+    .overflow-x-auto::-webkit-scrollbar {
+        height: 8px;
+    }
+    .overflow-x-auto::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+    .overflow-x-auto::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    
+    /* Ensure sticky columns work properly */
+    .sticky {
+        position: sticky;
+    }
+    
+    /* Save indicator */
+    .reorder-input.saving {
+        background-color: #FEF3C7;
+    }
+    .reorder-input.saved {
+        background-color: #D1FAE5;
+    }
+    .reorder-input.error {
+        background-color: #FEE2E2;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const tableRows = document.querySelectorAll('tbody tr');
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+    const exportPdfBtn = document.getElementById('exportPdfBtn');
+    
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            
+            tableRows.forEach(row => {
+                const itemCode = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
+                const itemName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
+                
+                if (itemCode.includes(searchTerm) || itemName.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Update export links with search parameter
+            const baseExcelUrl = exportExcelBtn.href.split('?')[0];
+            const basePdfUrl = exportPdfBtn.href.split('?')[0];
+            exportExcelBtn.href = `${baseExcelUrl}?firm={{ firm }}&search=${encodeURIComponent(searchTerm)}`;
+            exportPdfBtn.href = `${basePdfUrl}?firm={{ firm }}&search=${encodeURIComponent(searchTerm)}`;
+        });
+    }
+    
+    // Auto-save reorder quantity
+    let saveTimeout;
+    const reorderInputs = document.querySelectorAll('.reorder-input');
+    
+    reorderInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const inputEl = this;
+            const itemId = inputEl.dataset.itemId;
+            const value = inputEl.value;
+            
+            // Visual feedback - saving
+            inputEl.classList.remove('saved', 'error');
+            inputEl.classList.add('saving');
+            
+            // Debounce save
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                fetch('{% url "update_reorder_qty" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        item_id: itemId,
+                        reorder_qty: value || 0
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    inputEl.classList.remove('saving');
+                    if (data.success) {
+                        inputEl.classList.add('saved');
+                        setTimeout(() => inputEl.classList.remove('saved'), 1500);
+                    } else {
+                        inputEl.classList.add('error');
+                        console.error('Save failed:', data.error);
+                    }
+                })
+                .catch(err => {
+                    inputEl.classList.remove('saving');
+                    inputEl.classList.add('error');
+                    console.error('Save error:', err);
+                });
+            }, 500); // 500ms debounce
+        });
+    });
+    
+    // Reset reorder quantity button
+    const resetReorderBtn = document.getElementById('resetReorderBtn');
+    if (resetReorderBtn) {
+        resetReorderBtn.addEventListener('click', function() {
+            const firmName = '{{ firm }}';
+            const visibleCount = reorderInputs.length;
+            
+            // Confirmation dialog
+            const confirmed = confirm(
+                `⚠️ Reset All Reorder Quantities\n\n` +
+                `This will set reorder quantity to 0 for ALL items in "${firmName}" (not just the ${visibleCount} shown here).\n\n` +
+                `Are you sure you want to continue?`
+            );
+            
+            if (!confirmed) return;
+            
+            // Disable button and show loading state
+            resetReorderBtn.disabled = true;
+            resetReorderBtn.innerHTML = `
+                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Resetting...
+            `;
+            
+            fetch('{% url "reset_reorder_qty" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ firm: firmName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset all inputs to 0
+                    reorderInputs.forEach(input => {
+                        input.value = 0;
+                        input.classList.add('saved');
+                        setTimeout(() => input.classList.remove('saved'), 1500);
+                    });
+                    alert(`✅ Success!\n\n${data.message}`);
+                } else {
+                    alert(`❌ Error: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                console.error('Reset error:', err);
+                alert('❌ Error resetting quantities. Please try again.');
+            })
+            .finally(() => {
+                // Restore button
+                resetReorderBtn.disabled = false;
+                resetReorderBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Reset Reorder
+                `;
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

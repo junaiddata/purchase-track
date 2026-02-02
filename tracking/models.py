@@ -24,6 +24,8 @@ class ItemMaster(models.Model):
     item_upvc = models.CharField(max_length=50, blank=True, null=True, help_text="UPC Code")
     item_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    # Reorder quantity - for placing next order reference
+    reorder_qty = models.IntegerField(default=0, blank=True, null=True, help_text="Quantity to order next")
 
     def __str__(self):
         return f"{self.item_code} - {self.item_description[:30]}"
