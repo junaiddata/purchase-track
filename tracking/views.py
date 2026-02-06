@@ -748,6 +748,9 @@ def export_consolidated_excel(request):
     from django.http import HttpResponse
     from collections import defaultdict
     from datetime import datetime
+    from io import BytesIO
+    import re
+    import math
     
     firm_name = request.GET.get('firm')
     search_query = request.GET.get('search', '').strip().lower()
@@ -813,7 +816,9 @@ def export_consolidated_excel(request):
     # Create workbook
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = f"{firm_name[:20]} Consolidated"
+    # Sanitize worksheet title - Excel doesn't allow: / \ ? * [ ]
+    sanitized_title = re.sub(r'[\/\\\?\*\[\]]', '_', firm_name[:31])  # Max 31 chars for sheet name
+    ws.title = f"{sanitized_title} Consolidated"[:31]  # Excel sheet name max is 31 characters
     
     # Styles
     header_font = Font(bold=True, size=10)
@@ -839,14 +844,29 @@ def export_consolidated_excel(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center', wrap_text=True)
     
+    # Helper function to safely convert values for Excel
+    def safe_excel_value(val):
+        """Convert value to Excel-safe format"""
+        if val is None:
+            return ''
+        if isinstance(val, (int, float)):
+            # Check for NaN or infinity
+            if math.isnan(val) or math.isinf(val):
+                return ''
+            return val
+        return str(val)
+    
     # Data rows
     row_num = 2
     for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
         col = 1
-        ws.cell(row=row_num, column=col, value=item_code).border = thin_border
+        # Ensure item_code is a valid value
+        cell = ws.cell(row=row_num, column=col, value=safe_excel_value(item_code))
+        cell.border = thin_border
         col += 1
+        
         # Item name cell with wrap text enabled
-        item_name_cell = ws.cell(row=row_num, column=col, value=item_description)
+        item_name_cell = ws.cell(row=row_num, column=col, value=safe_excel_value(item_description))
         item_name_cell.border = thin_border
         item_name_cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
         col += 1
@@ -854,37 +874,57 @@ def export_consolidated_excel(request):
         # Show '-' for fully received items
         if data.get('is_fully_received', False):
             for date in sorted_dates:
-                ws.cell(row=row_num, column=col, value='-').border = thin_border
+                cell = ws.cell(row=row_num, column=col, value='-')
+                cell.border = thin_border
                 col += 1
-            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            cell = ws.cell(row=row_num, column=col, value='-')
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            cell = ws.cell(row=row_num, column=col, value='-')
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value='-').border = thin_border
+            cell = ws.cell(row=row_num, column=col, value='-')
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value=data['stock']).border = thin_border
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(data['stock']))
+            cell.border = thin_border
             col += 1
             if is_admin:
-                ws.cell(row=row_num, column=col, value=data['sold_stock'] if data['sold_stock'] is not None else '-').border = thin_border
+                sold_val = data['sold_stock'] if data['sold_stock'] is not None else '-'
+                cell = ws.cell(row=row_num, column=col, value=safe_excel_value(sold_val))
+                cell.border = thin_border
                 col += 1
-            ws.cell(row=row_num, column=col, value=data['reorder_qty']).border = thin_border
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(data['reorder_qty']))
+            cell.border = thin_border
         else:
             for date in sorted_dates:
                 qty = data['dates'].get(date, 0)
-                ws.cell(row=row_num, column=col, value=qty if qty > 0 else '-').border = thin_border
+                val = qty if qty > 0 else '-'
+                cell = ws.cell(row=row_num, column=col, value=safe_excel_value(val))
+                cell.border = thin_border
                 col += 1
-            ws.cell(row=row_num, column=col, value=data['on_the_way'] if data['on_the_way'] > 0 else '-').border = thin_border
+            val = data['on_the_way'] if data['on_the_way'] > 0 else '-'
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(val))
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value=data['pending_at_factory'] if data['pending_at_factory'] > 0 else '-').border = thin_border
+            val = data['pending_at_factory'] if data['pending_at_factory'] > 0 else '-'
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(val))
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value=data['total_qty'] if data['total_qty'] > 0 else '-').border = thin_border
+            val = data['total_qty'] if data['total_qty'] > 0 else '-'
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(val))
+            cell.border = thin_border
             col += 1
-            ws.cell(row=row_num, column=col, value=data['stock']).border = thin_border
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(data['stock']))
+            cell.border = thin_border
             col += 1
             if is_admin:
-                ws.cell(row=row_num, column=col, value=data['sold_stock'] if data['sold_stock'] is not None else '-').border = thin_border
+                sold_val = data['sold_stock'] if data['sold_stock'] is not None else '-'
+                cell = ws.cell(row=row_num, column=col, value=safe_excel_value(sold_val))
+                cell.border = thin_border
                 col += 1
-            ws.cell(row=row_num, column=col, value=data['reorder_qty']).border = thin_border
+            cell = ws.cell(row=row_num, column=col, value=safe_excel_value(data['reorder_qty']))
+            cell.border = thin_border
         
         row_num += 1
     
@@ -915,9 +955,19 @@ def export_consolidated_excel(request):
         else:
             ws.column_dimensions[col_letter].width = 12
     
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="{firm_name}_consolidated_{datetime.now().strftime("%Y%m%d")}.xlsx"'
-    wb.save(response)
+    # Save workbook to BytesIO buffer
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    # Create response
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    # Sanitize filename - remove invalid characters
+    safe_filename = re.sub(r'[<>:"/\\|?*]', '_', firm_name)
+    response['Content-Disposition'] = f'attachment; filename="{safe_filename}_consolidated_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     return response
 
 @login_required
