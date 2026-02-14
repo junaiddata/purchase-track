@@ -965,7 +965,8 @@ def export_consolidated_pdf(request):
     _base = getSampleStyleSheet()['Normal']
 
     def _ps(name, **kw):
-        return ParagraphStyle(name, parent=_base, **kw)
+        parent = kw.pop('parent', _base)
+        return ParagraphStyle(name, parent=parent, **kw)
 
     S_TITLE = _ps('CTitle',
         fontName='Helvetica-Bold', fontSize=FONT_TITLE,
