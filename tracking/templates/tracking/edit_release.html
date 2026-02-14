@@ -1,0 +1,39 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white shadow sm:rounded-lg overflow-hidden">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg font-medium leading-6 text-slate-900">Edit Release Date</h3>
+        <p class="mt-1 text-sm text-slate-500">
+            Release: {{ release.quotation_item.item.item_code }} — {{ release.quantity_released }} units
+        </p>
+
+        <form method="post" class="mt-4 space-y-4">
+            {% csrf_token %}
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+            {% for field in form %}
+            <div>
+                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}</label>
+                <div class="mt-1">
+                    {{ field }}
+                    {% if field.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="flex justify-end gap-2 pt-4">
+                <a href="{% if next_url %}{{ next_url }}{% else %}{% url 'quotation_detail' release.quotation_item.quotation.pk %}{% endif %}"
+                    class="inline-flex justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</a>
+                <button type="submit"
+                    class="inline-flex justify-center rounded-md border border-transparent bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

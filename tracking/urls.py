@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import export_views
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
@@ -12,14 +13,16 @@ urlpatterns = [
     path('quotation/<int:pk>/delete/', views.delete_quotation, name='delete_quotation'),
     path('release-item/<int:pk>/', views.release_item, name='release_item'),
     path('receive-release/<int:pk>/', views.receive_release, name='receive_release'),
+    path('release/<int:pk>/edit/', views.edit_release, name='edit_release'),
     path('receive-item/<int:pk>/', views.receive_item, name='receive_item'),
     path('sales/', views.sales_dashboard, name='sales_dashboard'),
     path('sales/track/', views.sales_firm_track, name='sales_firm_track'),
+    path('sales/track/export/pdf/', export_views.export_sales_track_pdf, name='export_sales_track_pdf'),
     path('consolidated/', views.consolidated_view, name='consolidated_view'),
     path('api/update-reorder-qty/', views.update_reorder_qty, name='update_reorder_qty'),
     path('api/reset-reorder-qty/', views.reset_reorder_qty, name='reset_reorder_qty'),
-    path('consolidated/export/excel/', views.export_consolidated_excel, name='export_consolidated_excel'),
-    path('consolidated/export/pdf/', views.export_consolidated_pdf, name='export_consolidated_pdf'),
+    path('consolidated/export/excel/', export_views.export_consolidated_excel, name='export_consolidated_excel'),
+    path('consolidated/export/pdf/', export_views.export_consolidated_pdf, name='export_consolidated_pdf'),
     path('api/items-by-firm/', views.get_items_by_firm, name='get_items_by_firm'),
     path('api/upload-quotation-items/', views.upload_quotation_items_excel, name='upload_quotation_items_excel'),
     path('login/', views.login_view, name='login'),

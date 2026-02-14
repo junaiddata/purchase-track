@@ -24,9 +24,19 @@
                 </div>
                 <div class="flex justify-between">
                     <dt class="text-sm font-medium text-slate-500">Expected:</dt>
-                    <dd class="text-sm text-slate-900">{{ release.expected_arrival_date }}</dd>
+                    <dd class="text-sm text-slate-900">{{ release.expected_arrival_date|date:"M d, Y"|default:"TBD" }}</dd>
                 </div>
             </dl>
+        </div>
+
+        <div class="mt-4">
+            <a href="{% url 'edit_release' release.pk %}"
+                class="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit date before confirming
+            </a>
         </div>
 
         <div class="mt-5 sm:flex sm:justify-end">

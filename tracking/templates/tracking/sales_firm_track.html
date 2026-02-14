@@ -3,8 +3,8 @@
 {% block content %}
 <div class="max-w-7xl mx-auto py-4 px-3 sm:px-4 lg:px-6 bg-slate-50 min-h-screen">
 
-    <!-- Header / Navigation -->
-    <div class="mb-4">
+    <!-- Top bar: Firm + everything -->
+    <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm -mx-3 px-3 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6 -mt-4 pt-4 pb-4 mb-4">
         <nav class="flex mb-3" aria-label="Breadcrumb">
             <ol class="flex items-center space-x-2">
                 <li>
@@ -33,30 +33,52 @@
             </ol>
         </nav>
 
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 flex items-center gap-3 flex-1">
-                {% if supplier_logo %}
-                <div class="flex-shrink-0">
-                    <img src="{{ supplier_logo.url }}" alt="{{ firm }}" class="h-10 w-10 rounded-lg object-contain bg-white border border-slate-100 p-1 shadow-sm">
-                </div>
-                {% endif %}
-                <div>
-                    <h1 class="text-lg font-bold text-slate-900 tracking-tight">{{ firm }}</h1>
-                    <p class="text-slate-500 text-xs mt-0.5">Shipment Pipeline & Logistics Status</p>
-                </div>
+        <!-- Firm name + logo prominent at top -->
+        <div class="flex items-center gap-3 mb-4">
+            {% if supplier_logo %}
+            <div class="flex-shrink-0">
+                <img src="{{ supplier_logo.url }}" alt="{{ firm }}" class="h-12 w-12 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-sm">
             </div>
+            {% endif %}
+            <div class="min-w-0">
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{{ firm }}</h1>
+                <p class="text-slate-500 text-sm">Shipment Pipeline & Logistics Status</p>
+            </div>
+        </div>
 
-            <!-- SEARCH BAR -->
-            <div class="w-full md:w-80 relative">
+        <!-- Search + Export options in one row -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div class="w-full sm:max-w-xs relative">
                 <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
                     <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </div>
                 <input type="text" id="pipelineSearch" 
-                    class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-4 bg-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs shadow-sm transition-shadow" 
+                    class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-4 bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm transition-shadow" 
                     placeholder="Search Item, Container, PO Ref..." 
                     autocomplete="off">
+            </div>
+            <div class="flex items-center gap-4 flex-wrap">
+                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="pdfShowReceived" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked>
+                    <span>Include received in PDF</span>
+                </label>
+                {% if is_admin %}
+                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="pdfShowRates" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Include rates in PDF</span>
+                </label>
+                {% endif %}
+                <a href="{% url 'export_sales_track_pdf' %}?firm={{ firm|urlencode }}" 
+                   id="exportPdfBtn"
+                   data-export-base="{% url 'export_sales_track_pdf' %}"
+                   class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Export PDF
+                </a>
             </div>
         </div>
     </div>
@@ -166,11 +188,14 @@
                             {% endif %}
                             <!-- Arrival -->
                             <td class="px-2 py-2 whitespace-nowrap text-right">
-                                <div class="flex flex-col items-end">
+                                <div class="flex flex-col items-end gap-0.5">
                                     <span class="text-xs font-medium text-slate-900 flex items-center gap-0.5">
                                         <svg class="w-2.5 h-2.5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         {{ release.expected_arrival_date|date:"M d, Y"|default:"TBD" }}
                                     </span>
+                                    {% if is_admin %}
+                                    <a href="{% url 'edit_release' release.pk %}?next={{ request.get_full_path|urlencode }}" class="text-[9px] text-brand-600 hover:text-brand-700">Edit date</a>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>
@@ -402,10 +427,31 @@
 
 </div>
 
-<!-- Client-side Filtering Script -->
+<!-- Client-side Filtering + Export PDF Toggle Script -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('pipelineSearch');
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        const pdfShowRates = document.getElementById('pdfShowRates');
+        const pdfShowReceived = document.getElementById('pdfShowReceived');
+
+        // Update Export PDF link when toggles change
+        if (exportPdfBtn) {
+            const baseUrl = exportPdfBtn.dataset.exportBase || exportPdfBtn.getAttribute('href').split('?')[0];
+            const firmParam = encodeURIComponent('{{ firm|escapejs }}');
+            function updateExportHref() {
+                const showReceived = (pdfShowReceived && pdfShowReceived.checked) ? '1' : '0';
+                let href = baseUrl + '?firm=' + firmParam + '&show_received=' + showReceived;
+                if (pdfShowRates) {
+                    href += '&show_rates=' + (pdfShowRates.checked ? '1' : '0');
+                }
+                exportPdfBtn.href = href;
+            }
+            if (pdfShowReceived) pdfShowReceived.addEventListener('change', updateExportHref);
+            if (pdfShowRates) pdfShowRates.addEventListener('change', updateExportHref);
+            updateExportHref();
+        }
+
         if (!searchInput) return;
 
         searchInput.addEventListener('keyup', function(e) {

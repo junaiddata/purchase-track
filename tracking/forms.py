@@ -111,6 +111,23 @@ class ShipmentForm(forms.ModelForm):
              'remarks': forms.Textarea(attrs={'rows': 3, 'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'}),
         }
 
+class ReleaseEditForm(forms.ModelForm):
+    """Form to edit expected arrival date and container info of an existing release."""
+    class Meta:
+        model = Release
+        fields = ['expected_arrival_date', 'container_info']
+        widgets = {
+            'expected_arrival_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'
+            }),
+            'container_info': forms.TextInput(attrs={
+                'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6',
+                'placeholder': 'e.g. Container #1234, Truck #55'
+            }),
+        }
+
+
 class ReleaseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.quotation_item = kwargs.pop('quotation_item', None)
