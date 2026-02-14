@@ -14,6 +14,7 @@ import json
 from django.views.decorators.cache import never_cache
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .decorators import admin_required, sales_required
+from .utils import fetch_local_open_qty_map
 from django.core.management import call_command
 from io import StringIO
 
@@ -682,11 +683,16 @@ def consolidated_view(request):
     # Sort dates chronologically
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
     
+    # Fetch Local Open Qty from external API
+    local_map = fetch_local_open_qty_map()
+
     # Convert to list for template
     table_data = []
     for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
         # Create a list of quantities matching the sorted_dates order
         date_qty_list = [data['dates'].get(date, 0) for date in sorted_dates]
+        local_open_qty = local_map.get(str(item_code).strip(), 0)
+        import_plus_local = data['total_qty'] + local_open_qty
         row = {
             'item_code': item_code,
             'item_description': item_description,
@@ -694,6 +700,8 @@ def consolidated_view(request):
             'on_the_way': data['on_the_way'],
             'pending_at_factory': data['pending_at_factory'],
             'total_qty': data['total_qty'],
+            'local_open_qty': local_open_qty,
+            'import_plus_local': import_plus_local,
             'stock': data['stock'],
             'sold_stock': data['sold_stock'],
             'reorder_qty': data['reorder_qty'],

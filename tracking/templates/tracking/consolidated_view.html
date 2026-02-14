@@ -110,6 +110,12 @@
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[55px]">
                             <div class="leading-tight">Total<br>Qty</div>
                         </th>
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-teal-50 w-[55px]">
+                            <div class="leading-tight">Local<br>Open Qty</div>
+                        </th>
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-teal-100 w-[60px]">
+                            <div class="leading-tight">Import +<br>Local</div>
+                        </th>
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[50px]">
                             Stock
                         </th>
@@ -183,6 +189,18 @@
                             </span>
                             {% endif %}
                         </td>
+                        <!-- Local Open Qty -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-teal-50 w-[55px]">
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold {% if row.local_open_qty > 0 %}bg-teal-100 text-teal-700{% else %}text-slate-400{% endif %}">
+                                {{ row.local_open_qty|default:0 }}
+                            </span>
+                        </td>
+                        <!-- Import + Local -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-teal-100 w-[60px]">
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-teal-200 text-teal-800">
+                                {{ row.import_plus_local }}
+                            </span>
+                        </td>
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-slate-100 w-[50px]">
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold {% if row.stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                                 {{ row.stock|default:0|floatformat:0 }}
@@ -207,7 +225,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if is_admin %}{{ dates|length|add:7 }}{% else %}{{ dates|length|add:6 }}{% endif %}" class="px-6 py-8 text-center text-slate-500">
+                        <td colspan="{% if is_admin %}{{ dates|length|add:9 }}{% else %}{{ dates|length|add:8 }}{% endif %}" class="px-6 py-8 text-center text-slate-500">
                             No items found for this firm.
                         </td>
                     </tr>

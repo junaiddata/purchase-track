@@ -138,3 +138,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+# External API for Local Open Qty (item-totals)
+ITEM_TOTALS_API_URL = env('ITEM_TOTALS_API_URL', default='')

@@ -8,6 +8,7 @@ from django.db.models import Sum
 
 from .models import Release, QuotationItem, ItemMaster
 from .decorators import admin_required, sales_required
+from .utils import fetch_local_open_qty_map
 
 
 @login_required
@@ -808,6 +809,8 @@ def export_consolidated_excel(request):
 
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
+    local_map = fetch_local_open_qty_map()
+
     wb = openpyxl.Workbook()
     ws = wb.active
     sanitized_title = re.sub(r'[\/\\\?\*\[\]]', '_', firm_name[:31])
@@ -820,7 +823,7 @@ def export_consolidated_excel(request):
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-    headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Stock']
+    headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Local Open Qty', 'Import + Local', 'Stock']
     if is_admin:
         headers += ['Sold Stock', 'Reorder Qty']
     else:
@@ -859,6 +862,13 @@ def export_consolidated_excel(request):
             v = data[key]
             ws.cell(row=row_num, column=col, value=v if v > 0 else '-').border = thin_border
             col += 1
+
+        local_open_qty = local_map.get(str(item_code).strip(), 0)
+        import_plus_local = data['total_qty'] + local_open_qty
+        ws.cell(row=row_num, column=col, value=local_open_qty if local_open_qty > 0 else '-').border = thin_border
+        col += 1
+        ws.cell(row=row_num, column=col, value=import_plus_local if import_plus_local > 0 else '-').border = thin_border
+        col += 1
 
         ws.cell(row=row_num, column=col, value=safe_val(data['stock'])).border = thin_border
         col += 1
@@ -1248,6 +1258,8 @@ def export_consolidated_pdf(request):
 
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
+    local_map = fetch_local_open_qty_map()
+
     # Compute totals for KPI bar
     total_items = len(consolidated_data)
     total_transit = sum(d['on_the_way'] for d in consolidated_data.values())
@@ -1410,6 +1422,8 @@ def export_consolidated_pdf(request):
         ('Transit', S_TH_C),
         ('Pending', S_TH_C),
         ('Total', S_TH_C),
+        ('Local', S_TH_C),
+        ('Imp+Loc', S_TH_C),
         ('Stock', S_TH_C),
     ])
 
@@ -1424,11 +1438,13 @@ def export_consolidated_pdf(request):
     transit_w = 38
     pending_w = 38
     total_w = 36
+    local_w = 34
+    import_local_w = 38
     stock_w = 36
     sold_w = 34
     reorder_w = 38
 
-    fixed_w = code_w + transit_w + pending_w + total_w + stock_w + reorder_w
+    fixed_w = code_w + transit_w + pending_w + total_w + local_w + import_local_w + stock_w + reorder_w
     if is_admin:
         fixed_w += sold_w
     date_total_w = len(sorted_dates) * date_col_w
@@ -1436,7 +1452,7 @@ def export_consolidated_pdf(request):
 
     col_widths = [code_w, desc_w]
     col_widths += [date_col_w] * len(sorted_dates)
-    col_widths += [transit_w, pending_w, total_w, stock_w]
+    col_widths += [transit_w, pending_w, total_w, local_w, import_local_w, stock_w]
     if is_admin:
         col_widths += [sold_w, reorder_w]
     else:
@@ -1457,6 +1473,9 @@ def export_consolidated_pdf(request):
             for _ in sorted_dates:
                 row.append(_p_dash())
             row.extend([_p_dash(), _p_dash(), _p_dash()])
+            local_open_qty = local_map.get(str(item_code).strip(), 0)
+            row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
+            row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
             row.append(_p_num(data['stock'], S_TD_BOLD_C))
         else:
             # Active item — show date quantities and summary
@@ -1466,6 +1485,10 @@ def export_consolidated_pdf(request):
             row.append(_p_val_or_dash(data['on_the_way'], S_TD_BOLD_C))
             row.append(_p_val_or_dash(data['pending_at_factory'], S_TD_BOLD_C))
             row.append(_p_val_or_dash(data['total_qty'], S_TD_BOLD_C))
+            local_open_qty = local_map.get(str(item_code).strip(), 0)
+            import_plus_local = data['total_qty'] + local_open_qty
+            row.append(_p_val_or_dash(local_open_qty, S_TD_BOLD_C))
+            row.append(_p_val_or_dash(import_plus_local, S_TD_BOLD_C))
             row.append(_p_num(data['stock'], S_TD_BOLD_C))
 
         if is_admin:
