@@ -559,6 +559,29 @@ def sales_firm_track(request):
         # Add sold stock (admin only)
         if is_admin:
             item.sold_stock = item.item.total_qty
+
+    transit_grand_totals = []
+    pending_grand_totals = []
+    if is_admin:
+        from collections import defaultdict
+        from decimal import Decimal
+
+        transit_totals = defaultdict(Decimal)
+        for release in in_transit_releases:
+            cur = release.quotation_item.quotation.get_currency_display()
+            rate = release.quotation_item.rate or Decimal('0')
+            qty = release.quantity_released or 0
+            transit_totals[cur] += Decimal(qty) * rate
+
+        pending_totals = defaultdict(Decimal)
+        for item in pending_items:
+            cur = item.quotation.get_currency_display()
+            rate = item.rate or Decimal('0')
+            qty = item.balance_to_release or 0
+            pending_totals[cur] += Decimal(qty) * rate
+
+        transit_grand_totals = sorted(transit_totals.items(), key=lambda kv: kv[0])
+        pending_grand_totals = sorted(pending_totals.items(), key=lambda kv: kv[0])
     
     return render(request, 'tracking/sales_firm_track.html', {
         'firm': firm_name,
@@ -567,6 +590,8 @@ def sales_firm_track(request):
         'pending_items': pending_items,
         'supplier_logo': supplier_logo,
         'is_admin': is_admin,
+        'transit_grand_totals': transit_grand_totals,
+        'pending_grand_totals': pending_grand_totals,
     })
 
 
