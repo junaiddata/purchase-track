@@ -24,6 +24,7 @@ urlpatterns = [
     path('consolidated/export/excel/', export_views.export_consolidated_excel, name='export_consolidated_excel'),
     path('consolidated/export/pdf/', export_views.export_consolidated_pdf, name='export_consolidated_pdf'),
     path('api/items-by-firm/', views.get_items_by_firm, name='get_items_by_firm'),
+    path('api/item-totals/', views.api_item_totals, name='api_item_totals'),
     path('api/upload-quotation-items/', views.upload_quotation_items_excel, name='upload_quotation_items_excel'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),

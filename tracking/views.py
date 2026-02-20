@@ -12,7 +12,9 @@ from .forms import UploadItemForm, QuotationForm, QuotationItemFormSet, Shipment
 from django.http import JsonResponse
 import json
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from collections import defaultdict
 from .decorators import admin_required, sales_required
 from .utils import fetch_local_open_qty_map
 from django.core.management import call_command
@@ -1302,3 +1304,34 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+
+@require_GET
+def api_item_totals(request):
+    """
+    Public API (no auth): returns list of { itemcode, totalqty_ordered }.
+    totalqty_ordered = in transit + pending at factory per item.
+    """
+    # In transit: sum of quantity_released for releases not received, per item
+    in_transit = (
+        Release.objects.filter(is_received=False)
+        .values('quotation_item__item__item_code')
+        .annotate(total=models.Sum('quantity_released'))
+    )
+    in_transit_map = {r['quotation_item__item__item_code']: (r['total'] or 0) for r in in_transit}
+
+    # Pending at factory: sum of balance_to_release for CONFIRMED quotation items, per item
+    pending_items = QuotationItem.objects.filter(
+        quotation__status='CONFIRMED'
+    ).select_related('item')
+    pending_map = defaultdict(int)
+    for qi in pending_items:
+        code = qi.item.item_code
+        pending_map[code] += (qi.balance_to_release or 0)
+
+    all_codes = set(in_transit_map) | set(pending_map)
+    payload = [
+        {'itemcode': code, 'totalqty_ordered': in_transit_map.get(code, 0) + pending_map.get(code, 0)}
+        for code in sorted(all_codes)
+    ]
+    return JsonResponse(payload, safe=False)
