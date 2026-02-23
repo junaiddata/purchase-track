@@ -19,6 +19,10 @@ from .decorators import admin_required, sales_required
 from .utils import fetch_local_open_qty_map
 from django.core.management import call_command
 from io import StringIO
+from decimal import Decimal
+
+# AED conversion rates for API item totals (e.g. USD=3.675, EUR=4.34)
+AED_RATES = {'USD': Decimal('3.675'), 'EUR': Decimal('4.34'), 'AED': Decimal('1'), 'GBP': Decimal('4.65')}
 
 @login_required
 @admin_required
@@ -1306,32 +1310,55 @@ def logout_view(request):
     return redirect('login')
 
 
+def _to_aed(amount, currency):
+    """Convert amount to AED using fixed rates (USD=3.675, EUR=4.34, AED=1, GBP=4.65)."""
+    rate = AED_RATES.get(currency, Decimal('1'))
+    return (Decimal(str(amount)) * rate).quantize(Decimal('0.01'))
+
 @require_GET
 def api_item_totals(request):
     """
-    Public API (no auth): returns list of { itemcode, totalqty_ordered }.
+    Public API (no auth): returns list of { itemcode, totalqty_ordered, total_value }.
     totalqty_ordered = in transit + pending at factory per item.
+    total_value = value in AED (USD→3.675, EUR→4.34, AED=1, GBP=4.65).
     """
-    # In transit: sum of quantity_released for releases not received, per item
-    in_transit = (
+    # In transit: qty and value per item (value = qty * rate, converted to AED)
+    in_transit_releases = (
         Release.objects.filter(is_received=False)
-        .values('quotation_item__item__item_code')
-        .annotate(total=models.Sum('quantity_released'))
+        .select_related('quotation_item__item', 'quotation_item__quotation')
     )
-    in_transit_map = {r['quotation_item__item__item_code']: (r['total'] or 0) for r in in_transit}
+    in_transit_qty = defaultdict(int)
+    in_transit_value_aed = defaultdict(Decimal)
+    for r in in_transit_releases:
+        code = r.quotation_item.item.item_code
+        qty = r.quantity_released or 0
+        rate = r.quotation_item.rate or 0
+        cur = r.quotation_item.quotation.currency or 'USD'
+        in_transit_qty[code] += qty
+        in_transit_value_aed[code] += _to_aed(qty * rate, cur)
 
-    # Pending at factory: sum of balance_to_release for CONFIRMED quotation items, per item
+    # Pending at factory: qty and value per item
     pending_items = QuotationItem.objects.filter(
         quotation__status='CONFIRMED'
-    ).select_related('item')
-    pending_map = defaultdict(int)
+    ).select_related('item', 'quotation')
+    pending_qty = defaultdict(int)
+    pending_value_aed = defaultdict(Decimal)
     for qi in pending_items:
         code = qi.item.item_code
-        pending_map[code] += (qi.balance_to_release or 0)
+        qty = qi.balance_to_release or 0
+        rate = qi.rate or 0
+        cur = qi.quotation.currency or 'USD'
+        pending_qty[code] += qty
+        pending_value_aed[code] += _to_aed(qty * rate, cur)
 
-    all_codes = set(in_transit_map) | set(pending_map)
-    payload = [
-        {'itemcode': code, 'totalqty_ordered': in_transit_map.get(code, 0) + pending_map.get(code, 0)}
-        for code in sorted(all_codes)
-    ]
+    all_codes = set(in_transit_qty) | set(pending_qty)
+    payload = []
+    for code in sorted(all_codes):
+        total_qty = in_transit_qty.get(code, 0) + pending_qty.get(code, 0)
+        total_value = float((in_transit_value_aed.get(code, Decimal('0')) + pending_value_aed.get(code, Decimal('0'))).quantize(Decimal('0.01')))
+        payload.append({
+            'itemcode': code,
+            'totalqty_ordered': total_qty,
+            'total_value': total_value
+        })
     return JsonResponse(payload, safe=False)
