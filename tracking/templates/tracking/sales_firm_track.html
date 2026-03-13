@@ -130,6 +130,10 @@
                             {% endif %}
                             <th scope="col" class="px-2 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                 Expected @ Port</th>
+                            {% if is_admin %}
+                            <th scope="col" class="px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                Action</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 bg-white">
@@ -207,6 +211,18 @@
                                     {% endif %}
                                 </div>
                             </td>
+                            {% if is_admin %}
+                            <!-- Receive button -->
+                            <td class="px-2 py-2 whitespace-nowrap text-center">
+                                <form method="post" action="{% url 'receive_release' release.pk %}?next={{ request.get_full_path|urlencode }}" class="inline" data-release-id="{{ release.pk }}" data-item-code="{{ release.quotation_item.item.item_code }}" data-qty="{{ release.quantity_released }}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="receive-btn inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                        Receive
+                                    </button>
+                                </form>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -452,6 +468,19 @@
         const exportPdfBtn = document.getElementById('exportPdfBtn');
         const pdfShowRates = document.getElementById('pdfShowRates');
         const pdfShowReceived = document.getElementById('pdfShowReceived');
+
+        // Receive button: JavaScript confirmation for In Transit section (Admin only)
+        document.querySelectorAll('form[action*="receive-release"]').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const itemCode = form.dataset.itemCode || 'this item';
+                const qty = form.dataset.qty || '';
+                const msg = 'Are you sure you want to receive ' + qty + ' units of ' + itemCode + '? This will mark the shipment as delivered.';
+                if (confirm(msg)) {
+                    form.submit();
+                }
+            });
+        });
 
         // Update Export PDF link when toggles change
         if (exportPdfBtn) {

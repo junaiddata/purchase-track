@@ -183,6 +183,9 @@ def receive_release(request, pk):
             else:
                 messages.success(request, "Release marked as Received and Stock updated.")
             
+            next_url = request.GET.get('next') or request.POST.get('next')
+            if next_url:
+                return redirect(next_url)
             return redirect('quotation_detail', pk=release.quotation_item.quotation.pk)
 
     return render(request, 'tracking/receive_release_confirm.html', {'release': release})
