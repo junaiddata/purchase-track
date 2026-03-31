@@ -48,16 +48,19 @@
 
         <!-- Search + Export options in one row -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div class="w-full sm:max-w-xs relative">
-                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
+            <div class="w-full sm:max-w-md">
+                <div class="relative">
+                    <div class="absolute top-2.5 left-0 pl-2.5 pointer-events-none">
+                        <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                    <textarea id="pipelineSearch" rows="2"
+                        class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-snug bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm transition-shadow resize-y min-h-[2.75rem]"
+                        placeholder="Search or paste multiple item codes (newline, comma, or space-separated)"
+                        autocomplete="off"></textarea>
                 </div>
-                <input type="text" id="pipelineSearch" 
-                    class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-4 bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm transition-shadow" 
-                    placeholder="Search Item, Container, PO Ref..." 
-                    autocomplete="off">
+                <p class="mt-1 text-[11px] text-slate-500">Bulk: enter several codes—rows matching <span class="font-medium text-slate-600">any</span> of them stay visible.</p>
             </div>
             <div class="flex items-center gap-4 flex-wrap">
                 <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
@@ -254,7 +257,7 @@
         {% if received_releases %}
         <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-xs">
+                <table class="min-w-full divide-y divide-slate-200 searchable-table text-xs">
                     <thead class="bg-slate-50">
                         <tr>
                             <th scope="col" class="px-2 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</th>
@@ -501,33 +504,47 @@
 
         if (!searchInput) return;
 
-        searchInput.addEventListener('keyup', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            
-            // Get all tables marked as searchable
-            const tables = document.querySelectorAll('.searchable-table');
+        function parseSearchTokens(raw) {
+            var trimmed = (raw || '').trim();
+            if (!trimmed) return [];
+            var parts = trimmed.split(/[\n,;]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+            if (parts.length > 1) {
+                return parts.map(function(p) { return p.toLowerCase(); });
+            }
+            var single = parts[0] || '';
+            var bySpace = single.split(/\s+/).filter(Boolean);
+            if (bySpace.length > 1) {
+                var allCodeLike = bySpace.every(function(t) { return /^[\w.-]+$/.test(t); });
+                if (allCodeLike) {
+                    return bySpace.map(function(t) { return t.toLowerCase(); });
+                }
+            }
+            return [single.toLowerCase()];
+        }
 
-            tables.forEach(table => {
-                const rows = table.querySelectorAll('tbody tr');
-                let hasVisibleRows = false;
+        function rowMatchesTokens(rowTextLower, tokens) {
+            if (tokens.length === 0) return true;
+            if (tokens.length === 1) return rowTextLower.indexOf(tokens[0]) !== -1;
+            return tokens.some(function(t) { return rowTextLower.indexOf(t) !== -1; });
+        }
 
-                rows.forEach(row => {
-                    // Combine all text content from the row
-                    const rowText = row.innerText.toLowerCase();
-                    
-                    if (rowText.includes(searchTerm)) {
+        function applyPipelineFilter() {
+            var tokens = parseSearchTokens(searchInput.value);
+            var tables = document.querySelectorAll('.searchable-table');
+            tables.forEach(function(table) {
+                var rows = table.querySelectorAll('tbody tr');
+                rows.forEach(function(row) {
+                    var rowText = row.innerText.toLowerCase();
+                    if (rowMatchesTokens(rowText, tokens)) {
                         row.style.display = '';
-                        hasVisibleRows = true;
                     } else {
                         row.style.display = 'none';
                     }
                 });
-
-                // Optional: Handle empty state visualization if needed, 
-                // typically handled by the 'else' block in Django, but for JS filtering:
-                // We keep the table structure even if empty.
             });
-        });
+        }
+
+        searchInput.addEventListener('input', applyPipelineFilter);
     });
 </script>
 {% endblock %}
