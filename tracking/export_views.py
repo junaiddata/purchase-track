@@ -1,6 +1,8 @@
 """
 Export views for PDF and Excel downloads.
 """
+import re
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -9,6 +11,66 @@ from django.db.models import Sum
 from .models import Release, QuotationItem, ItemMaster
 from .decorators import admin_required, sales_required
 from .utils import fetch_local_open_qty_map
+
+
+def parse_consolidated_search_tokens(raw):
+    """
+    Same rules as Purchase Report / sales_firm_track UI: newline, comma, or semicolon
+    separates codes; space-separated tokens only if every part looks code-like ([\\w.-]+).
+    """
+    if raw is None:
+        return []
+    trimmed = str(raw).strip()
+    if not trimmed:
+        return []
+    parts = [p.strip() for p in re.split(r"[\n,;]+", trimmed) if p.strip()]
+    if len(parts) > 1:
+        return [p.lower() for p in parts]
+    single = parts[0]
+    by_space = [p for p in single.split() if p]
+    if len(by_space) > 1 and all(re.match(r"^[\w.-]+$", p) for p in by_space):
+        return [p.lower() for p in by_space]
+    return [single.lower()]
+
+
+def item_matches_consolidated_tokens(item_code, item_description, tokens):
+    if not tokens:
+        return True
+    code_l = (item_code or "").lower()
+    desc_l = (item_description or "").lower()
+    if len(tokens) == 1:
+        t = tokens[0]
+        return t in code_l or t in desc_l
+    return any(t in code_l or t in desc_l for t in tokens)
+
+
+def _key_matches_single_token(key, t):
+    code_l = key[0].lower()
+    desc_l = (key[1] or "").lower()
+    return t in code_l or t in desc_l
+
+
+def ordered_consolidated_keys(keys, tokens):
+    """Row order: groups matching each token in search order, then remaining keys sorted by item code."""
+    if not keys:
+        return keys
+    keys_sorted = sorted(keys)
+    if not tokens or len(tokens) <= 1:
+        return keys_sorted
+    seen = set()
+    ordered = []
+    for t in tokens:
+        if not t:
+            continue
+        for k in keys_sorted:
+            if k in seen or not _key_matches_single_token(k, t):
+                continue
+            ordered.append(k)
+            seen.add(k)
+    for k in keys_sorted:
+        if k not in seen:
+            ordered.append(k)
+    return ordered
 
 
 @login_required
@@ -756,7 +818,8 @@ def export_consolidated_excel(request):
     import math
 
     firm_name = request.GET.get('firm')
-    search_query = request.GET.get('search', '').strip().lower()
+    search_raw = request.GET.get('search', '')
+    search_tokens = parse_consolidated_search_tokens(search_raw)
 
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
@@ -778,9 +841,8 @@ def export_consolidated_excel(request):
         item = q_item.item
         key = (item.item_code, item.item_description, item.id)
 
-        if search_query:
-            if search_query not in item.item_code.lower() and search_query not in item.item_description.lower():
-                continue
+        if not item_matches_consolidated_tokens(item.item_code, item.item_description, search_tokens):
+            continue
 
         if key not in consolidated_data:
             consolidated_data[key] = {
@@ -843,8 +905,11 @@ def export_consolidated_excel(request):
             return ''
         return val
 
+    row_keys = ordered_consolidated_keys(list(consolidated_data.keys()), search_tokens)
     row_num = 2
-    for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
+    for key in row_keys:
+        item_code, item_description, item_id = key
+        data = consolidated_data[key]
         col = 1
         ws.cell(row=row_num, column=col, value=safe_val(item_code)).border = thin_border
         col += 1
@@ -858,8 +923,8 @@ def export_consolidated_excel(request):
             ws.cell(row=row_num, column=col, value=qty if qty > 0 else '-').border = thin_border
             col += 1
 
-        for key in ['on_the_way', 'pending_at_factory', 'total_qty']:
-            v = data[key]
+        for qty_field in ['on_the_way', 'pending_at_factory', 'total_qty']:
+            v = data[qty_field]
             ws.cell(row=row_num, column=col, value=v if v > 0 else '-').border = thin_border
             col += 1
 
@@ -1202,7 +1267,8 @@ def export_consolidated_pdf(request):
     # ─────────────────────────────────────────────────────────────
 
     firm_name = request.GET.get('firm')
-    search_query = request.GET.get('search', '').strip().lower()
+    search_raw = request.GET.get('search', '')
+    search_tokens = parse_consolidated_search_tokens(search_raw)
 
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
@@ -1226,10 +1292,8 @@ def export_consolidated_pdf(request):
         item = q_item.item
         key = (item.item_code, item.item_description, item.id)
 
-        if search_query:
-            if (search_query not in item.item_code.lower()
-                    and search_query not in item.item_description.lower()):
-                continue
+        if not item_matches_consolidated_tokens(item.item_code, item.item_description, search_tokens):
+            continue
 
         if key not in consolidated_data:
             consolidated_data[key] = {
@@ -1356,9 +1420,12 @@ def export_consolidated_pdf(request):
     elements.append(Spacer(1, 4))
 
     # Search filter note
-    if search_query:
+    if search_tokens:
+        filter_label = _esc(search_raw.strip().replace('\n', ', ')[:200])
+        if len(search_raw.strip()) > 200:
+            filter_label += '…'
         elements.append(Paragraph(
-            f'<font color="#64748B">Filter applied: "{_esc(search_query)}"</font>',
+            f'<font color="#64748B">Filter applied: "{filter_label}"</font>',
             S_META,
         ))
         elements.append(Spacer(1, 4))
@@ -1461,7 +1528,10 @@ def export_consolidated_pdf(request):
 
     # Build data rows
     data_rows = []
-    for (item_code, item_description, item_id), data in sorted(consolidated_data.items()):
+    row_keys_pdf = ordered_consolidated_keys(list(consolidated_data.keys()), search_tokens)
+    for key in row_keys_pdf:
+        item_code, item_description, item_id = key
+        data = consolidated_data[key]
         desc_para = Paragraph(_esc(item_description), S_ITEM_DESC)
 
         row = [

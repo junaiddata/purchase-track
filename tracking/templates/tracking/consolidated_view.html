@@ -45,43 +45,47 @@
                 </div>
             </div>
             
-            <!-- Search and Export -->
-            <div class="flex items-center gap-2">
-                <!-- Search Input -->
-                <div class="relative">
-                    <input type="text" id="searchInput" placeholder="Search item..." 
-                           class="w-48 pl-8 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
-                    <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
+            <!-- Search first (Sales firm track pattern), then exports -->
+            <div class="flex flex-col gap-3 w-full md:flex-1 md:max-w-4xl">
+                <div class="w-full sm:max-w-md">
+                    <div class="relative">
+                        <div class="absolute top-2.5 left-0 pl-2.5 pointer-events-none">
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </div>
+                        <textarea id="pipelineSearch" rows="2"
+                            class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-snug bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm transition-shadow resize-y min-h-[2.75rem]"
+                            placeholder="Search or paste multiple item codes (newline, comma, or space-separated)"
+                            autocomplete="off"></textarea>
+                    </div>
+                    <p class="mt-1 text-[11px] text-slate-500">Bulk: rows matching <span class="font-medium text-slate-600">any</span> token stay visible. Excel/PDF use the same filter; multi-code exports list rows in your token order.</p>
                 </div>
-                
-                <!-- Export Excel -->
-                <a href="{% url 'export_consolidated_excel' %}?firm={{ firm }}" id="exportExcelBtn"
-                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    Excel
-                </a>
-                
-                <!-- Export PDF -->
-                <a href="{% url 'export_consolidated_pdf' %}?firm={{ firm }}" id="exportPdfBtn"
-                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                    </svg>
-                    PDF
-                </a>
-                
-                <!-- Reset Reorder Qty -->
-                <button type="button" id="resetReorderBtn"
-                   class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                    Reset Reorder
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{% url 'export_consolidated_excel' %}?firm={{ firm|urlencode }}" id="exportExcelBtn"
+                       data-export-base="{% url 'export_consolidated_excel' %}"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Excel
+                    </a>
+                    <a href="{% url 'export_consolidated_pdf' %}?firm={{ firm|urlencode }}" id="exportPdfBtn"
+                       data-export-base="{% url 'export_consolidated_pdf' %}"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        PDF
+                    </a>
+                    <button type="button" id="resetReorderBtn"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Reset Reorder
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -89,7 +93,7 @@
     <!-- Consolidated Table -->
     <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200 text-xs">
+            <table class="min-w-full divide-y divide-slate-200 text-xs consolidated-searchable-table">
                 <thead class="bg-slate-50 sticky top-0 z-10">
                     <tr>
                         <th scope="col" class="px-1.5 py-1.5 text-left text-[9px] font-bold text-slate-600 uppercase tracking-wider sticky left-0 bg-slate-50 z-20 w-[80px]">
@@ -271,34 +275,62 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Search functionality
-    const searchInput = document.getElementById('searchInput');
-    const tableRows = document.querySelectorAll('tbody tr');
+    const searchInput = document.getElementById('pipelineSearch');
+    const table = document.querySelector('.consolidated-searchable-table');
+    const tableRows = table ? table.querySelectorAll('tbody tr') : [];
     const exportExcelBtn = document.getElementById('exportExcelBtn');
     const exportPdfBtn = document.getElementById('exportPdfBtn');
-    
-    if (searchInput) {
-        searchInput.addEventListener('keyup', function(e) {
-            const searchTerm = e.target.value.toLowerCase().trim();
-            
-            tableRows.forEach(row => {
-                const itemCode = row.querySelector('td:first-child')?.textContent.toLowerCase() || '';
-                const itemName = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
-                
-                if (itemCode.includes(searchTerm) || itemName.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-            
-            // Update export links with search parameter
-            const baseExcelUrl = exportExcelBtn.href.split('?')[0];
-            const basePdfUrl = exportPdfBtn.href.split('?')[0];
-            exportExcelBtn.href = `${baseExcelUrl}?firm={{ firm }}&search=${encodeURIComponent(searchTerm)}`;
-            exportPdfBtn.href = `${basePdfUrl}?firm={{ firm }}&search=${encodeURIComponent(searchTerm)}`;
+    const firmParam = encodeURIComponent('{{ firm|escapejs }}');
+
+    function parseSearchTokens(raw) {
+        var trimmed = (raw || '').trim();
+        if (!trimmed) return [];
+        var parts = trimmed.split(/[\n,;]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+        if (parts.length > 1) {
+            return parts.map(function(p) { return p.toLowerCase(); });
+        }
+        var single = parts[0] || '';
+        var bySpace = single.split(/\s+/).filter(Boolean);
+        if (bySpace.length > 1) {
+            var allCodeLike = bySpace.every(function(t) { return /^[\w.-]+$/.test(t); });
+            if (allCodeLike) return bySpace.map(function(t) { return t.toLowerCase(); });
+        }
+        return [single.toLowerCase()];
+    }
+
+    function rowMatchesTokens(rowTextLower, tokens) {
+        if (tokens.length === 0) return true;
+        if (tokens.length === 1) return rowTextLower.indexOf(tokens[0]) !== -1;
+        return tokens.some(function(t) { return rowTextLower.indexOf(t) !== -1; });
+    }
+
+    function updateExportLinks() {
+        if (!exportExcelBtn || !exportPdfBtn) return;
+        var baseExcel = exportExcelBtn.dataset.exportBase || exportExcelBtn.getAttribute('href').split('?')[0];
+        var basePdf = exportPdfBtn.dataset.exportBase || exportPdfBtn.getAttribute('href').split('?')[0];
+        var q = searchInput ? searchInput.value.trim() : '';
+        var searchPart = q ? '&search=' + encodeURIComponent(q) : '';
+        exportExcelBtn.href = baseExcel + '?firm=' + firmParam + searchPart;
+        exportPdfBtn.href = basePdf + '?firm=' + firmParam + searchPart;
+    }
+
+    function applyTableFilter() {
+        if (!searchInput || !tableRows.length) return;
+        var tokens = parseSearchTokens(searchInput.value);
+        tableRows.forEach(function(row) {
+            var rowText = row.innerText.toLowerCase();
+            row.style.display = rowMatchesTokens(rowText, tokens) ? '' : 'none';
         });
     }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            applyTableFilter();
+            updateExportLinks();
+        });
+        applyTableFilter();
+    }
+    updateExportLinks();
     
     // Auto-save reorder quantity
     let saveTimeout;
