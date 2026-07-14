@@ -88,13 +88,22 @@
 
     <!-- Items List -->
     <div class="bg-white shadow-sm ring-1 ring-slate-900/5 rounded-xl overflow-hidden">
-        <div class="border-b border-slate-200 bg-slate-50 px-6 py-4">
+        <div class="border-b border-slate-200 bg-slate-50 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 class="text-base font-semibold text-slate-900">Order Items</h3>
+            <div class="relative w-full sm:w-72">
+                <svg class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" id="itemSearchInput" placeholder="Search items by code, description, or firm..."
+                    class="block w-full rounded-lg border-0 py-2 pl-9 pr-3 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 placeholder:text-slate-400">
+            </div>
         </div>
 
-        <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-slate-100" id="itemsList">
             {% for item in quotation.items.all %}
-            <div class="p-4 sm:p-6 hover:bg-slate-50/50 transition-colors">
+            <div class="p-4 sm:p-6 hover:bg-slate-50/50 transition-colors item-row"
+                data-search="{{ item.item.item_code|lower }} {{ item.item.item_description|lower }} {{ item.item.item_firm|lower }}">
                 <!-- Item Header -->
                 <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <!-- Item Info -->
@@ -203,7 +212,11 @@
             </div>
             {% endfor %}
         </div>
-        
+
+        <div id="itemSearchNoResults" class="hidden p-8 text-center text-slate-500">
+            <p class="text-sm">No items match your search.</p>
+        </div>
+
         <!-- Quotation Total -->
         <div class="border-t border-slate-200 bg-slate-50 px-6 py-4">
             <div class="flex items-center justify-between">
@@ -219,4 +232,26 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const input = document.getElementById('itemSearchInput');
+        if (!input) return;
+        const rows = document.querySelectorAll('#itemsList .item-row');
+        const noResults = document.getElementById('itemSearchNoResults');
+
+        input.addEventListener('input', function () {
+            const query = input.value.trim().toLowerCase();
+            let visibleCount = 0;
+            rows.forEach(function (row) {
+                const matches = !query || row.dataset.search.includes(query);
+                row.classList.toggle('hidden', !matches);
+                if (matches) visibleCount++;
+            });
+            if (noResults) {
+                noResults.classList.toggle('hidden', !(query && visibleCount === 0));
+            }
+        });
+    })();
+</script>
 {% endblock %}

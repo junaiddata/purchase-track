@@ -366,17 +366,31 @@ def receive_item(request, pk):
     if request.method == 'POST':
         form = ShipmentForm(request.POST)
         if form.is_valid():
-            shipment = form.save(commit=False)
-            shipment.quotation_item = item
-            shipment.save()
-            messages.success(request, f"Received {shipment.quantity_received} of {item.item.item_code}")
-            
-            # Check if quotation is fully received and update status automatically
-            quotation = item.quotation
-            if quotation.check_and_update_status():
-                messages.success(request, f"Quotation {quotation.reference_number} status updated to COMPLETED - all items received!")
-            
-            return redirect('quotation_detail', pk=item.quotation.pk)
+            quantity_received = form.cleaned_data['quantity_received']
+            available_to_receive = item.balance_to_release
+
+            # Block direct receiving that would exceed what hasn't already been
+            # committed to a pending release, so a release received later can't
+            # push total received past quantity_ordered (defense in depth).
+            if quantity_received > available_to_receive:
+                form.add_error(
+                    'quantity_received',
+                    f"Cannot receive more than {available_to_receive} directly. "
+                    f"{item.quantity_in_transit} unit(s) are already in a pending release for this item - "
+                    f"receive that release first."
+                )
+            else:
+                shipment = form.save(commit=False)
+                shipment.quotation_item = item
+                shipment.save()
+                messages.success(request, f"Received {shipment.quantity_received} of {item.item.item_code}")
+
+                # Check if quotation is fully received and update status automatically
+                quotation = item.quotation
+                if quotation.check_and_update_status():
+                    messages.success(request, f"Quotation {quotation.reference_number} status updated to COMPLETED - all items received!")
+
+                return redirect('quotation_detail', pk=item.quotation.pk)
     else:
         form = ShipmentForm()
     
