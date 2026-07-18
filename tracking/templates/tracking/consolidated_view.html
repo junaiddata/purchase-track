@@ -135,9 +135,9 @@
                 </thead>
                 <tbody class="divide-y divide-slate-200 bg-white">
                     {% for row in table_data %}
-                    <tr class="hover:bg-slate-50 transition-colors {% if row.is_fully_received %}bg-slate-50/50{% endif %}">
+                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer item-row {% if row.is_fully_received %}bg-slate-50/50{% endif %}" data-row-toggle="detail-{{ row.item_id }}">
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-900 sticky left-0 {% if row.is_fully_received %}bg-slate-50/50{% else %}bg-white{% endif %} z-10 w-[80px]">
-                            {{ row.item_code }}
+                            <span class="detail-caret inline-block mr-0.5 text-slate-400 transition-transform">▶</span>{{ row.item_code }}
                             {% if row.is_fully_received %}
                             <span class="ml-0.5 text-[8px] text-green-600">✓</span>
                             {% endif %}
@@ -219,12 +219,72 @@
                         {% endif %}
                         <!-- Reorder Qty (Editable) -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-purple-50 w-[70px]">
-                            <input type="number" 
+                            <input type="number"
                                    class="reorder-input w-14 px-1 py-0.5 text-[9px] text-center border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 bg-white"
                                    data-item-id="{{ row.item_id }}"
                                    value="{{ row.reorder_qty|default:0 }}"
                                    min="0"
-                                   placeholder="0">
+                                   placeholder="0"
+                                   onclick="event.stopPropagation()">
+                        </td>
+                    </tr>
+                    <!-- Drill-down detail row: order/release breakdown for this item -->
+                    <tr id="detail-{{ row.item_id }}" class="detail-row hidden">
+                        <td colspan="{% if is_admin %}{{ dates|length|add:10 }}{% else %}{{ dates|length|add:9 }}{% endif %}" class="bg-slate-50 px-3 py-3 border-t border-b border-slate-200">
+                            {% if row.orders %}
+                            <table class="min-w-full text-[10px] border border-slate-200 rounded overflow-hidden bg-white">
+                                <thead class="bg-slate-100">
+                                    <tr>
+                                        <th class="px-2 py-1 text-left font-bold text-slate-600 uppercase tracking-wide">Order Ref</th>
+                                        <th class="px-2 py-1 text-left font-bold text-slate-600 uppercase tracking-wide">Status</th>
+                                        <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Ordered</th>
+                                        <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Received</th>
+                                        <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Pending@Factory</th>
+                                        <th class="px-2 py-1 text-left font-bold text-slate-600 uppercase tracking-wide">Releases (Qty / Release Date / Expected Arrival / Container)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    {% for order in row.orders %}
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-2 py-1.5 whitespace-nowrap font-semibold text-slate-800">
+                                            <a href="{% url 'quotation_detail' order.quotation_id %}" class="text-blue-600 hover:underline" target="_blank" rel="noopener">{{ order.reference_number }}</a>
+                                        </td>
+                                        <td class="px-2 py-1.5 whitespace-nowrap text-slate-600">{{ order.status }}</td>
+                                        <td class="px-2 py-1.5 text-center text-slate-700">{{ order.quantity_ordered }}</td>
+                                        <td class="px-2 py-1.5 text-center text-slate-700">{{ order.quantity_received }}</td>
+                                        <td class="px-2 py-1.5 text-center text-slate-700">{{ order.pending_at_factory }}</td>
+                                        <td class="px-2 py-1.5 text-slate-600">
+                                            {% if order.releases %}
+                                            <ul class="space-y-0.5">
+                                                {% for release in order.releases %}
+                                                <li class="flex flex-wrap items-center gap-1">
+                                                    <span class="inline-flex items-center px-1 py-0.5 rounded font-semibold {% if release.is_received %}bg-green-100 text-green-700{% else %}bg-orange-100 text-orange-700{% endif %}">
+                                                        {{ release.quantity_released }}
+                                                    </span>
+                                                    <span>released {{ release.release_date|date:"M d, Y" }}</span>
+                                                    {% if release.expected_arrival_date %}
+                                                    <span>&middot; ETA {{ release.expected_arrival_date|date:"M d, Y" }}</span>
+                                                    {% endif %}
+                                                    {% if release.container_info %}
+                                                    <span>&middot; {{ release.container_info }}</span>
+                                                    {% endif %}
+                                                    <span class="{% if release.is_received %}text-green-600{% else %}text-orange-600{% endif %}">
+                                                        ({% if release.is_received %}Received{% else %}In Transit{% endif %})
+                                                    </span>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                            {% else %}
+                                            <span class="text-slate-400">No releases yet</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="text-slate-400 text-[10px]">No order details available.</p>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -271,13 +331,21 @@
     .reorder-input.error {
         background-color: #FEE2E2;
     }
+
+    /* Drill-down detail row */
+    .detail-row.hidden {
+        display: none;
+    }
+    .item-row .detail-caret.expanded {
+        transform: rotate(90deg);
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('pipelineSearch');
     const table = document.querySelector('.consolidated-searchable-table');
-    const tableRows = table ? table.querySelectorAll('tbody tr') : [];
+    const tableRows = table ? table.querySelectorAll('tbody tr.item-row') : [];
     const exportExcelBtn = document.getElementById('exportExcelBtn');
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     const firmParam = encodeURIComponent('{{ firm|escapejs }}');
@@ -319,7 +387,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var tokens = parseSearchTokens(searchInput.value);
         tableRows.forEach(function(row) {
             var rowText = row.innerText.toLowerCase();
-            row.style.display = rowMatchesTokens(rowText, tokens) ? '' : 'none';
+            var matches = rowMatchesTokens(rowText, tokens);
+            row.style.display = matches ? '' : 'none';
+            // Collapse any open detail row when the filter changes
+            var detailRow = document.getElementById(row.dataset.rowToggle);
+            if (detailRow) {
+                detailRow.classList.add('hidden');
+                detailRow.style.display = matches ? '' : 'none';
+            }
+            var caret = row.querySelector('.detail-caret');
+            if (caret) caret.classList.remove('expanded');
         });
     }
 
@@ -331,7 +408,18 @@ document.addEventListener('DOMContentLoaded', function() {
         applyTableFilter();
     }
     updateExportLinks();
-    
+
+    // Toggle order/release drill-down detail row on item row click
+    document.querySelectorAll('.item-row[data-row-toggle]').forEach(function(row) {
+        row.addEventListener('click', function() {
+            var detailRow = document.getElementById(row.dataset.rowToggle);
+            if (!detailRow) return;
+            detailRow.classList.toggle('hidden');
+            var caret = row.querySelector('.detail-caret');
+            if (caret) caret.classList.toggle('expanded');
+        });
+    });
+
     // Auto-save reorder quantity
     let saveTimeout;
     const reorderInputs = document.querySelectorAll('.reorder-input');

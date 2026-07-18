@@ -707,12 +707,13 @@ def consolidated_view(request):
                 'sold_stock': item.total_qty or 0 if is_admin else None,
                 'reorder_qty': item.reorder_qty or 0,
                 'is_fully_received': True,  # Will be set to False if any order is not fully received
+                'orders': [],
             }
-        
+
         # If this order is not fully received, mark the item as not fully received
         if not is_fully_received:
             consolidated_data[key]['is_fully_received'] = False
-        
+
         # Get only releases that are on the way (not received) grouped by expected_arrival_date
         releases_on_way = q_item.releases.filter(is_received=False)
         for release in releases_on_way:
@@ -721,11 +722,31 @@ def consolidated_view(request):
                 date_str = release.expected_arrival_date.strftime('%b %d %Y')
                 consolidated_data[key]['dates'][date_str] += release.quantity_released
                 all_dates.add(date_str)
-        
+
         # Add quantities
         consolidated_data[key]['on_the_way'] += on_the_way
         consolidated_data[key]['pending_at_factory'] += pending_at_factory
-        consolidated_data[key]['total_qty'] += (on_the_way + pending_at_factory) 
+        consolidated_data[key]['total_qty'] += (on_the_way + pending_at_factory)
+
+        # Record the underlying order (quotation) breakdown for the detail drill-down
+        consolidated_data[key]['orders'].append({
+            'reference_number': q_item.quotation.reference_number,
+            'quotation_id': q_item.quotation_id,
+            'status': q_item.quotation.get_status_display(),
+            'quantity_ordered': q_item.quantity_ordered,
+            'quantity_received': q_item.quantity_received,
+            'pending_at_factory': pending_at_factory,
+            'releases': [
+                {
+                    'quantity_released': release.quantity_released,
+                    'release_date': release.release_date,
+                    'expected_arrival_date': release.expected_arrival_date,
+                    'container_info': release.container_info,
+                    'is_received': release.is_received,
+                }
+                for release in q_item.releases.all()
+            ],
+        })
     
     # Sort dates chronologically
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
@@ -754,6 +775,7 @@ def consolidated_view(request):
             'reorder_qty': data['reorder_qty'],
             'date_quantities': date_qty_list,  # List matching sorted_dates order
             'is_fully_received': data['is_fully_received'],  # True if all orders for this item are received
+            'orders': data['orders'],  # Underlying quotation/release breakdown for drill-down
         }
         table_data.append(row)
     
