@@ -733,6 +733,8 @@ def consolidated_view(request):
             'reference_number': q_item.quotation.reference_number,
             'quotation_id': q_item.quotation_id,
             'status': q_item.quotation.get_status_display(),
+            'currency': q_item.quotation.get_currency_display(),
+            'rate': q_item.rate,
             'quantity_ordered': q_item.quantity_ordered,
             'quantity_received': q_item.quantity_received,
             'pending_at_factory': pending_at_factory,

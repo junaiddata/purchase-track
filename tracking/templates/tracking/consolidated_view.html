@@ -237,6 +237,7 @@
                                     <tr>
                                         <th class="px-2 py-1 text-left font-bold text-slate-600 uppercase tracking-wide">Order Ref</th>
                                         <th class="px-2 py-1 text-left font-bold text-slate-600 uppercase tracking-wide">Status</th>
+                                        <th class="px-2 py-1 text-right font-bold text-slate-600 uppercase tracking-wide">Price</th>
                                         <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Ordered</th>
                                         <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Received</th>
                                         <th class="px-2 py-1 text-center font-bold text-slate-600 uppercase tracking-wide">Pending@Factory</th>
@@ -250,6 +251,7 @@
                                             <a href="{% url 'quotation_detail' order.quotation_id %}" class="text-blue-600 hover:underline" target="_blank" rel="noopener">{{ order.reference_number }}</a>
                                         </td>
                                         <td class="px-2 py-1.5 whitespace-nowrap text-slate-600">{{ order.status }}</td>
+                                        <td class="px-2 py-1.5 whitespace-nowrap text-right font-semibold text-slate-800">{{ order.currency }} {{ order.rate|floatformat:2 }}</td>
                                         <td class="px-2 py-1.5 text-center text-slate-700">{{ order.quantity_ordered }}</td>
                                         <td class="px-2 py-1.5 text-center text-slate-700">{{ order.quantity_received }}</td>
                                         <td class="px-2 py-1.5 text-center text-slate-700">{{ order.pending_at_factory }}</td>
