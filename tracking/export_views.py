@@ -1677,3 +1677,217 @@ def export_consolidated_pdf(request):
         f'{datetime.now().strftime("%Y%m%d")}.pdf"'
     )
     return response
+
+
+ITEM_SUMMARY_HEADERS = [
+    'Item Code', 'Description', 'Stock Qty', 'Ordered Qty',
+    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock',
+]
+ITEM_SUMMARY_QTY_KEYS = ['stock', 'ordered', 'pending_at_factory', 'in_transit', 'reorder_qty', 'sold_stock']
+
+
+@login_required
+@admin_required
+def export_item_summary_excel(request):
+    """Export the brand-wise Item Summary to Excel (same data as the Item Summary page)."""
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from datetime import datetime
+    from io import BytesIO
+    from .views import build_item_summary_rows
+
+    firm_name = request.GET.get('firm')
+    if not firm_name:
+        return HttpResponse("Firm name required", status=400)
+    search = request.GET.get('search', '')
+    rows = build_item_summary_rows(firm_name, search)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    sanitized_title = re.sub(r'[\/\\\?\*\[\]:]', '_', firm_name)
+    ws.title = f"{sanitized_title} Items"[:31]
+
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    total_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+
+    # Title block
+    ws.cell(row=1, column=1, value=f"Item Summary - {firm_name}").font = Font(bold=True, size=13)
+    subtitle = f"Generated: {datetime.now().strftime('%d %b %Y %H:%M')}"
+    if search.strip():
+        subtitle += f"  |  Filter: {search.strip()}"
+    ws.cell(row=2, column=1, value=subtitle).font = Font(italic=True, size=9, color="64748B")
+
+    header_row = 4
+    for col, header in enumerate(ITEM_SUMMARY_HEADERS, 1):
+        cell = ws.cell(row=header_row, column=col, value=header)
+        cell.font = Font(bold=True, size=10)
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    row_num = header_row + 1
+    for row in rows:
+        ws.cell(row=row_num, column=1, value=row['item_code']).border = thin_border
+        c = ws.cell(row=row_num, column=2, value=row['item_description'])
+        c.border = thin_border
+        c.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+        for offset, key in enumerate(ITEM_SUMMARY_QTY_KEYS):
+            ws.cell(row=row_num, column=3 + offset, value=row[key]).border = thin_border
+        row_num += 1
+
+    # Totals row
+    if rows:
+        for col in range(1, len(ITEM_SUMMARY_HEADERS) + 1):
+            ws.cell(row=row_num, column=col).fill = total_fill
+            ws.cell(row=row_num, column=col).border = thin_border
+        c = ws.cell(row=row_num, column=1, value=f"TOTAL ({len(rows)} items)")
+        c.font = Font(bold=True)
+        ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=2)
+        for offset, key in enumerate(ITEM_SUMMARY_QTY_KEYS):
+            c = ws.cell(row=row_num, column=3 + offset, value=sum(r[key] for r in rows))
+            c.font = Font(bold=True)
+
+    ws.column_dimensions['A'].width = 16
+    ws.column_dimensions['B'].width = 55
+    for letter in 'CDEFGH':
+        ws.column_dimensions[letter].width = 14
+    ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    safe_filename = re.sub(r'[<>:"/\\|?*]', '_', firm_name)
+    response['Content-Disposition'] = f'attachment; filename="{safe_filename}_item_summary_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    return response
+
+
+@login_required
+@admin_required
+def export_item_summary_pdf(request):
+    """Export the brand-wise Item Summary to PDF (same data as the Item Summary page)."""
+    from datetime import datetime
+    from io import BytesIO
+    from xml.sax.saxutils import escape
+    from reportlab.lib import colors
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from .views import build_item_summary_rows
+
+    firm_name = request.GET.get('firm')
+    if not firm_name:
+        return HttpResponse("Firm name required", status=400)
+    search = request.GET.get('search', '')
+    rows = build_item_summary_rows(firm_name, search)
+
+    CLR_NAVY = HexColor('#0F172A')
+    CLR_SLATE = HexColor('#334155')
+    CLR_SLATE_LIGHT = HexColor('#64748B')
+    CLR_ACCENT = HexColor('#0EA5E9')
+    CLR_BORDER = HexColor('#CBD5E1')
+    CLR_ROW_ALT = HexColor('#F8FAFC')
+    CLR_TOTAL_BG = HexColor('#EFF6FF')
+
+    base = getSampleStyleSheet()['Normal']
+    s_title = ParagraphStyle('ISTitle', parent=base, fontName='Helvetica-Bold', fontSize=15, leading=19, textColor=CLR_NAVY)
+    s_sub = ParagraphStyle('ISSub', parent=base, fontName='Helvetica', fontSize=8.5, leading=11, textColor=CLR_SLATE_LIGHT)
+    s_th = ParagraphStyle('ISTH', parent=base, fontName='Helvetica-Bold', fontSize=7.5, leading=9, textColor=colors.white)
+    s_th_r = ParagraphStyle('ISTHR', parent=s_th, alignment=TA_RIGHT)
+    s_td = ParagraphStyle('ISTD', parent=base, fontName='Helvetica', fontSize=7.5, leading=9, textColor=CLR_SLATE, wordWrap='CJK')
+    s_td_b = ParagraphStyle('ISTDB', parent=s_td, fontName='Helvetica-Bold')
+
+    buffer = BytesIO()
+    pw, ph = landscape(A4)
+    margin_h = 0.4 * inch
+    margin_bot = 0.55 * inch
+    usable_w = pw - 2 * margin_h
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=margin_h, rightMargin=margin_h,
+        topMargin=0.45 * inch, bottomMargin=margin_bot,
+        title=f"Item Summary - {firm_name}",
+    )
+
+    count_label = f"{len(rows)} item" + ("" if len(rows) == 1 else "s")
+    subtitle = f"Generated: {datetime.now().strftime('%d %B %Y  %H:%M')}  |  {count_label}"
+    if search.strip():
+        subtitle += f"  |  Filter: {escape(search.strip())}"
+    elements = [
+        Paragraph(f"Item Summary - {escape(firm_name)}", s_title),
+        Paragraph(subtitle, s_sub),
+        Spacer(1, 10),
+    ]
+
+    header = [Paragraph(h, s_th if i < 2 else s_th_r) for i, h in enumerate(ITEM_SUMMARY_HEADERS)]
+    data = [header]
+    for row in rows:
+        data.append(
+            [Paragraph(escape(row['item_code']), s_td_b), Paragraph(escape(row['item_description'] or ''), s_td)]
+            + [f"{row[key]:,}" for key in ITEM_SUMMARY_QTY_KEYS]
+        )
+    if rows:
+        data.append(
+            [Paragraph(f"TOTAL ({len(rows)} items)", s_td_b), '']
+            + [f"{sum(r[key] for r in rows):,}" for key in ITEM_SUMMARY_QTY_KEYS]
+        )
+    else:
+        data.append([Paragraph('No items found for this brand.', s_td)] + [''] * 7)
+
+    qty_w = 0.95 * inch
+    col_widths = [1.2 * inch, usable_w - 1.2 * inch - 6 * qty_w] + [qty_w] * 6
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ('BACKGROUND', (0, 0), (-1, 0), CLR_NAVY),
+        ('FONTNAME', (2, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (2, 1), (-1, -1), 7.5),
+        ('TEXTCOLOR', (2, 1), (-1, -1), CLR_SLATE),
+        ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.4, CLR_BORDER),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+    for i in range(2, len(data) - 1, 2):
+        style.append(('BACKGROUND', (0, i), (-1, i), CLR_ROW_ALT))
+    if rows:
+        style += [
+            ('SPAN', (0, -1), (1, -1)),
+            ('BACKGROUND', (0, -1), (-1, -1), CLR_TOTAL_BG),
+            ('FONTNAME', (2, -1), (-1, -1), 'Helvetica-Bold'),
+        ]
+    else:
+        style.append(('SPAN', (0, -1), (-1, -1)))
+    table.setStyle(TableStyle(style))
+    elements.append(table)
+
+    def _draw_footer(canvas, doc):
+        canvas.saveState()
+        footer_y = margin_bot - 18
+        canvas.setStrokeColor(CLR_ACCENT)
+        canvas.setLineWidth(0.75)
+        canvas.line(margin_h, footer_y + 12, pw - margin_h, footer_y + 12)
+        canvas.setFont('Helvetica', 6.5)
+        canvas.setFillColor(CLR_SLATE_LIGHT)
+        canvas.drawCentredString(
+            pw / 2, footer_y,
+            f"Page {doc.page}  |  Junaid World  |  Item Summary - {firm_name}  |  {datetime.now().strftime('%d %b %Y')}"
+        )
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    safe_filename = re.sub(r'[<>:"/\\|?*]', '_', firm_name)
+    response['Content-Disposition'] = f'attachment; filename="{safe_filename}_item_summary_{datetime.now().strftime("%Y%m%d")}.pdf"'
+    return response

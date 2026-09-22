@@ -799,6 +799,136 @@ def consolidated_view(request):
         'is_admin': is_admin,
     })
 
+ITEM_SUMMARY_STATUSES = ['CONFIRMED', 'COMPLETED']
+
+
+ITEM_SUMMARY_PAGE_SIZE = 50
+
+
+def item_summary_items(firm_name, search=''):
+    """
+    All ItemMaster items of a brand (items synced from the stock API), ordered by code.
+    Optional `search` filters by item code or description (case-insensitive).
+    """
+    items = ItemMaster.objects.filter(item_firm=firm_name).order_by('item_code')
+    search = (search or '').strip()
+    if search:
+        items = items.filter(
+            models.Q(item_code__icontains=search) | models.Q(item_description__icontains=search)
+        )
+    return items
+
+
+def build_item_summary_rows(firm_name, search='', items=None):
+    """
+    Build one row per item of a brand from ItemMaster (all items synced from the stock API):
+    Stock, Ordered (total ever ordered), Pending at Factory, In-Transit, Reorder, Sold.
+    Order quantities come from CONFIRMED/COMPLETED quotations; items never ordered show 0.
+    Pass `items` (e.g. one page) to build rows only for those items; otherwise all brand
+    items matching `search` are used.
+    Shared by the Item Summary page and its Excel/PDF exports.
+    """
+    if items is None:
+        items = item_summary_items(firm_name, search)
+        lines_qs = QuotationItem.objects.filter(item__item_firm=firm_name)
+    else:
+        items = list(items)
+        lines_qs = QuotationItem.objects.filter(item_id__in=[item.id for item in items])
+
+    lines = list(lines_qs.filter(
+        quotation__status__in=ITEM_SUMMARY_STATUSES
+    ).values('id', 'item_id', 'quantity_ordered', 'quotation__status'))
+    line_ids = [line['id'] for line in lines]
+
+    # Per-line in-transit and received totals in two grouped queries (avoids per-row queries)
+    transit_map = dict(
+        Release.objects.filter(quotation_item_id__in=line_ids, is_received=False)
+        .values('quotation_item_id').annotate(total=Sum('quantity_released'))
+        .values_list('quotation_item_id', 'total')
+    )
+    received_map = dict(
+        Shipment.objects.filter(quotation_item_id__in=line_ids)
+        .values('quotation_item_id').annotate(total=Sum('quantity_received'))
+        .values_list('quotation_item_id', 'total')
+    )
+
+    # Aggregate lines per item
+    totals = defaultdict(lambda: {'ordered': 0, 'in_transit': 0, 'pending_at_factory': 0})
+    for line in lines:
+        in_transit = transit_map.get(line['id']) or 0
+        received = received_map.get(line['id']) or 0
+        t = totals[line['item_id']]
+        t['ordered'] += line['quantity_ordered'] or 0
+        t['in_transit'] += in_transit
+        # Pending at factory only counts CONFIRMED orders (same rule as the User View)
+        if line['quotation__status'] == 'CONFIRMED':
+            t['pending_at_factory'] += max(0, (line['quantity_ordered'] or 0) - in_transit - received)
+
+    rows = []
+    empty_totals = {'ordered': 0, 'in_transit': 0, 'pending_at_factory': 0}
+    for item in items:
+        t = totals.get(item.id, empty_totals)
+        rows.append({
+            'item_code': item.item_code,
+            'item_description': item.item_description,
+            'stock': item.item_stock or 0,
+            'ordered': t['ordered'],
+            'pending_at_factory': t['pending_at_factory'],
+            'in_transit': t['in_transit'],
+            'reorder_qty': item.reorder_qty or 0,
+            'sold_stock': item.total_qty or 0,
+        })
+    return rows
+
+
+@never_cache
+@login_required
+@admin_required
+def item_summary(request):
+    """
+    Read-only brand-wise summary of all items (from the stock API) with their order status.
+    First shows brand selection, then the paginated item table for the chosen brand.
+    """
+    from urllib.parse import urlencode
+    from .models import Supplier
+
+    firm_name = request.GET.get('firm')
+
+    # If no brand selected, show brand selection page
+    if not firm_name:
+        firm_names = QuotationItem.objects.filter(
+            quotation__status__in=ITEM_SUMMARY_STATUSES
+        ).values_list('item__item_firm', flat=True).distinct().order_by('item__item_firm')
+
+        suppliers = {s.name: s for s in Supplier.objects.filter(name__in=firm_names)}
+        firms_with_logos = [
+            {'name': firm, 'logo': suppliers[firm].logo if firm in suppliers and suppliers[firm].logo else None}
+            for firm in firm_names
+        ]
+        return render(request, 'tracking/item_summary_firm_select.html', {'firms': firms_with_logos})
+
+    supplier = Supplier.objects.filter(name=firm_name).first()
+    supplier_logo = supplier.logo if supplier and supplier.logo else None
+
+    search = request.GET.get('search', '').strip()
+    paginator = Paginator(item_summary_items(firm_name, search), ITEM_SUMMARY_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    # Query string (firm + search) reused by pagination and export links
+    base_params = {'firm': firm_name}
+    if search:
+        base_params['search'] = search
+
+    return render(request, 'tracking/item_summary.html', {
+        'firm': firm_name,
+        'search': search,
+        'rows': build_item_summary_rows(firm_name, items=page_obj.object_list),
+        'page_obj': page_obj,
+        'page_range': paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1),
+        'base_query': urlencode(base_params),
+        'supplier_logo': supplier_logo,
+    })
+
 @login_required
 @admin_required
 def update_reorder_qty(request):
