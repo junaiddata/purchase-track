@@ -5,12 +5,13 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction, models
-from django.db.models import Sum
+from django.db.models import Sum, Min
 from django.db.models.functions import Coalesce
 from .models import ItemMaster, Quotation, QuotationItem, Release, Shipment, Manufacturer, LocalPurchaseItem
 from .forms import UploadItemForm, QuotationForm, QuotationItemFormSet, ShipmentForm, ReleaseForm, ReleaseEditForm, ManufacturerForm, UploadManufacturerForm
 from django.http import JsonResponse
 import json
+import re
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -805,17 +806,37 @@ ITEM_SUMMARY_STATUSES = ['CONFIRMED', 'COMPLETED']
 ITEM_SUMMARY_PAGE_SIZE = 50
 
 
+def parse_bulk_search_tokens(raw):
+    """
+    Split a bulk search string into lowercase tokens (same rules as the Consolidated page):
+    newline/comma/semicolon separated; or space separated when every part looks like a code.
+    """
+    trimmed = (raw or '').strip()
+    if not trimmed:
+        return []
+    parts = [p.strip() for p in re.split(r'[\n,;]+', trimmed) if p.strip()]
+    if len(parts) > 1:
+        return [p.lower() for p in parts]
+    single = parts[0] if parts else ''
+    by_space = single.split()
+    if len(by_space) > 1 and all(re.fullmatch(r'[\w.-]+', t) for t in by_space):
+        return [t.lower() for t in by_space]
+    return [single.lower()]
+
+
 def item_summary_items(firm_name, search=''):
     """
     All ItemMaster items of a brand (items synced from the stock API), ordered by code.
-    Optional `search` filters by item code or description (case-insensitive).
+    Optional `search` is a bulk search: items matching ANY token (item code or description,
+    case-insensitive) are returned.
     """
     items = ItemMaster.objects.filter(item_firm=firm_name).order_by('item_code')
-    search = (search or '').strip()
-    if search:
-        items = items.filter(
-            models.Q(item_code__icontains=search) | models.Q(item_description__icontains=search)
-        )
+    tokens = parse_bulk_search_tokens(search)
+    if tokens:
+        q = models.Q()
+        for token in tokens:
+            q |= models.Q(item_code__icontains=token) | models.Q(item_description__icontains=token)
+        items = items.filter(q)
     return items
 
 
@@ -837,8 +858,17 @@ def build_item_summary_rows(firm_name, search='', items=None):
 
     lines = list(lines_qs.filter(
         quotation__status__in=ITEM_SUMMARY_STATUSES
-    ).values('id', 'item_id', 'quantity_ordered', 'quotation__status'))
+    ).values('id', 'item_id', 'quantity_ordered', 'quotation__status', 'rate',
+             'expected_delivery_date', 'quotation__created_at').order_by('quotation__created_at', 'id'))
     line_ids = [line['id'] for line in lines]
+
+    # Earliest expected arrival of each line's still-in-transit releases
+    release_eta_map = dict(
+        Release.objects.filter(quotation_item_id__in=line_ids, is_received=False,
+                               expected_arrival_date__isnull=False)
+        .values('quotation_item_id').annotate(eta=Min('expected_arrival_date'))
+        .values_list('quotation_item_id', 'eta')
+    )
 
     # Per-line in-transit and received totals in two grouped queries (avoids per-row queries)
     transit_map = dict(
@@ -853,19 +883,33 @@ def build_item_summary_rows(firm_name, search='', items=None):
     )
 
     # Aggregate lines per item
-    totals = defaultdict(lambda: {'ordered': 0, 'in_transit': 0, 'pending_at_factory': 0})
-    for line in lines:
+    new_totals = lambda: {'ordered': 0, 'in_transit': 0, 'pending_at_factory': 0,
+                          'ordered_price': None, 'expected_date': None}
+    totals = defaultdict(new_totals)
+    for line in lines:  # oldest -> newest order, so the last rate seen is the latest order's
         in_transit = transit_map.get(line['id']) or 0
         received = received_map.get(line['id']) or 0
         t = totals[line['item_id']]
         t['ordered'] += line['quantity_ordered'] or 0
         t['in_transit'] += in_transit
+        t['ordered_price'] = line['rate']
+        # Expected date = earliest date among open (not yet received) stock
+        candidates = []
+        if release_eta_map.get(line['id']):
+            candidates.append(release_eta_map[line['id']])
         # Pending at factory only counts CONFIRMED orders (same rule as the User View)
         if line['quotation__status'] == 'CONFIRMED':
-            t['pending_at_factory'] += max(0, (line['quantity_ordered'] or 0) - in_transit - received)
+            pending = max(0, (line['quantity_ordered'] or 0) - in_transit - received)
+            t['pending_at_factory'] += pending
+            if pending and line['expected_delivery_date']:
+                candidates.append(line['expected_delivery_date'])
+        if candidates:
+            earliest = min(candidates)
+            if t['expected_date'] is None or earliest < t['expected_date']:
+                t['expected_date'] = earliest
 
     rows = []
-    empty_totals = {'ordered': 0, 'in_transit': 0, 'pending_at_factory': 0}
+    empty_totals = new_totals()
     for item in items:
         t = totals.get(item.id, empty_totals)
         rows.append({
@@ -873,6 +917,8 @@ def build_item_summary_rows(firm_name, search='', items=None):
             'item_description': item.item_description,
             'stock': item.item_stock or 0,
             'ordered': t['ordered'],
+            'ordered_price': t['ordered_price'],
+            'expected_date': t['expected_date'],
             'pending_at_factory': t['pending_at_factory'],
             'in_transit': t['in_transit'],
             'reorder_qty': item.reorder_qty or 0,

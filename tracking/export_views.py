@@ -1680,10 +1680,27 @@ def export_consolidated_pdf(request):
 
 
 ITEM_SUMMARY_HEADERS = [
-    'Item Code', 'Description', 'Stock Qty', 'Ordered Qty',
-    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock',
+    'Item Code', 'Description', 'Stock Qty', 'Ordered Qty', 'Ordered Price',
+    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock', 'Expected Date',
+]
+# Keys of the columns after Item Code / Description, in display order
+ITEM_SUMMARY_VALUE_KEYS = [
+    'stock', 'ordered', 'ordered_price', 'pending_at_factory', 'in_transit',
+    'reorder_qty', 'sold_stock', 'expected_date',
 ]
 ITEM_SUMMARY_QTY_KEYS = ['stock', 'ordered', 'pending_at_factory', 'in_transit', 'reorder_qty', 'sold_stock']
+
+
+def _item_summary_cell(row, key, for_pdf=False):
+    """Display value of one Item Summary column (price/date formatted, blanks as empty)."""
+    value = row[key]
+    if key == 'ordered_price':
+        if value is None:
+            return ''
+        return f"{value:,.2f}" if for_pdf else float(value)
+    if key == 'expected_date':
+        return value.strftime('%d %b %Y') if value else ''
+    return f"{value:,}" if for_pdf else value
 
 
 @login_required
@@ -1735,8 +1752,13 @@ def export_item_summary_excel(request):
         c = ws.cell(row=row_num, column=2, value=row['item_description'])
         c.border = thin_border
         c.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
-        for offset, key in enumerate(ITEM_SUMMARY_QTY_KEYS):
-            ws.cell(row=row_num, column=3 + offset, value=row[key]).border = thin_border
+        for offset, key in enumerate(ITEM_SUMMARY_VALUE_KEYS):
+            c = ws.cell(row=row_num, column=3 + offset, value=_item_summary_cell(row, key))
+            c.border = thin_border
+            if key == 'ordered_price':
+                c.number_format = '#,##0.00'
+            elif key == 'expected_date':
+                c.alignment = Alignment(horizontal='center')
         row_num += 1
 
     # Totals row
@@ -1747,13 +1769,15 @@ def export_item_summary_excel(request):
         c = ws.cell(row=row_num, column=1, value=f"TOTAL ({len(rows)} items)")
         c.font = Font(bold=True)
         ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=2)
-        for offset, key in enumerate(ITEM_SUMMARY_QTY_KEYS):
+        for offset, key in enumerate(ITEM_SUMMARY_VALUE_KEYS):
+            if key not in ITEM_SUMMARY_QTY_KEYS:
+                continue
             c = ws.cell(row=row_num, column=3 + offset, value=sum(r[key] for r in rows))
             c.font = Font(bold=True)
 
     ws.column_dimensions['A'].width = 16
     ws.column_dimensions['B'].width = 55
-    for letter in 'CDEFGH':
+    for letter in 'CDEFGHIJ':
         ws.column_dimensions[letter].width = 14
     ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
 
@@ -1831,18 +1855,19 @@ def export_item_summary_pdf(request):
     for row in rows:
         data.append(
             [Paragraph(escape(row['item_code']), s_td_b), Paragraph(escape(row['item_description'] or ''), s_td)]
-            + [f"{row[key]:,}" for key in ITEM_SUMMARY_QTY_KEYS]
+            + [_item_summary_cell(row, key, for_pdf=True) for key in ITEM_SUMMARY_VALUE_KEYS]
         )
     if rows:
         data.append(
             [Paragraph(f"TOTAL ({len(rows)} items)", s_td_b), '']
-            + [f"{sum(r[key] for r in rows):,}" for key in ITEM_SUMMARY_QTY_KEYS]
+            + [f"{sum(r[key] for r in rows):,}" if key in ITEM_SUMMARY_QTY_KEYS else ''
+               for key in ITEM_SUMMARY_VALUE_KEYS]
         )
     else:
-        data.append([Paragraph('No items found for this brand.', s_td)] + [''] * 7)
+        data.append([Paragraph('No items found for this brand.', s_td)] + [''] * 9)
 
-    qty_w = 0.95 * inch
-    col_widths = [1.2 * inch, usable_w - 1.2 * inch - 6 * qty_w] + [qty_w] * 6
+    qty_w = 0.8 * inch
+    col_widths = [1.1 * inch, usable_w - 1.1 * inch - 8 * qty_w] + [qty_w] * 8
     table = Table(data, colWidths=col_widths, repeatRows=1)
     style = [
         ('BACKGROUND', (0, 0), (-1, 0), CLR_NAVY),
