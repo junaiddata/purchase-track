@@ -27,7 +27,7 @@
             {% endif %}
             <div>
                 <h1 class="text-lg font-bold text-slate-900 tracking-tight">{{ firm }}</h1>
-                <p class="text-slate-500 text-xs mt-0.5">Item Summary &middot; {{ page_obj.paginator.count }} item{{ page_obj.paginator.count|pluralize }}{% if search %} matching &ldquo;{{ search }}&rdquo;{% endif %}</p>
+                <p id="itemSummarySubtitle" class="text-slate-500 text-xs mt-0.5">Item Summary &middot; {{ page_obj.paginator.count }} item{{ page_obj.paginator.count|pluralize }}{% if search %} matching &ldquo;{{ search }}&rdquo;{% endif %}</p>
             </div>
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
@@ -40,7 +40,7 @@
                         </svg>
                     </div>
                     <textarea name="search" id="itemSummarySearch" rows="2"
-                        class="block w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg leading-snug bg-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm resize-y min-h-[2.75rem]"
+                        class="block w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg leading-snug bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm resize-y min-h-[2.75rem]"
                         placeholder="Search or paste multiple item codes (newline, comma, or space-separated)"
                         autocomplete="off">{{ search }}</textarea>
                     {% if search %}
@@ -52,29 +52,52 @@
                     </a>
                     {% endif %}
                 </div>
-                <p class="mt-1 text-[11px] text-slate-500">Bulk: items matching <span class="font-medium text-slate-600">any</span> code/description stay visible. Press Enter to search (Shift+Enter for a new line). Excel/PDF use the same filter.</p>
+                <p class="mt-1 text-[11px] text-slate-500">Bulk: items matching <span class="font-medium text-slate-600">any</span> code/description stay visible. Excel/PDF use the same filter.</p>
             </form>
             <script>
                 (function () {
                     var ta = document.getElementById('itemSummarySearch');
                     if (!ta) return;
-                    ta.addEventListener('keydown', function (e) {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            ta.form.submit();
-                        }
+                    // Live search: filter as you type (server-side, so all pages are searched)
+                    var timer = null, seq = 0;
+                    function liveSearch() {
+                        var mine = ++seq;
+                        var params = new URLSearchParams(new FormData(ta.form));
+                        var q = ta.value.trim();
+                        if (q) { params.set('search', q); } else { params.delete('search'); }
+                        var url = ta.form.action + '?' + params.toString();
+                        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                            .then(function (res) { return res.text(); })
+                            .then(function (html) {
+                                if (mine !== seq) return;  // a newer search superseded this one
+                                var doc = new DOMParser().parseFromString(html, 'text/html');
+                                ['itemSummaryResults', 'itemSummarySubtitle'].forEach(function (id) {
+                                    var fresh = doc.getElementById(id), cur = document.getElementById(id);
+                                    if (fresh && cur) cur.innerHTML = fresh.innerHTML;
+                                });
+                                ['itemSummaryExcelBtn', 'itemSummaryPdfBtn'].forEach(function (id) {
+                                    var fresh = doc.getElementById(id), cur = document.getElementById(id);
+                                    if (fresh && cur) cur.href = fresh.getAttribute('href');
+                                });
+                                history.replaceState(null, '', url);
+                            })
+                            .catch(function () {});
+                    }
+                    ta.addEventListener('input', function () {
+                        clearTimeout(timer);
+                        timer = setTimeout(liveSearch, 300);
                     });
                 })();
             </script>
             <div class="flex items-center gap-2">
-                <a href="{% url 'export_item_summary_excel' %}?{{ base_query }}"
+                <a href="{% url 'export_item_summary_excel' %}?{{ base_query }}" id="itemSummaryExcelBtn"
                    class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     Excel
                 </a>
-                <a href="{% url 'export_item_summary_pdf' %}?{{ base_query }}"
+                <a href="{% url 'export_item_summary_pdf' %}?{{ base_query }}" id="itemSummaryPdfBtn"
                    class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
@@ -86,7 +109,7 @@
     </div>
 
     <!-- Table -->
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <div id="itemSummaryResults" class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-140px)]">
             <table class="min-w-full divide-y divide-slate-200 text-sm item-summary-table">
                 <thead class="bg-slate-50">

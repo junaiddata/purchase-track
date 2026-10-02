@@ -128,6 +128,10 @@
                             <div class="leading-tight">Sold<br>Stock</div>
                         </th>
                         {% endif %}
+                        <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-sky-50 w-[70px]">
+                            <div class="leading-tight">SAP Quoted<br>Qty</div>
+                            <div class="text-[7px] font-medium text-slate-400 normal-case">Jul-Sep 2026</div>
+                        </th>
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-purple-50 w-[70px]">
                             <div class="leading-tight">Reorder<br>Qty</div>
                         </th>
@@ -217,6 +221,10 @@
                             </span>
                         </td>
                         {% endif %}
+                        <!-- SAP Quoted Qty (read-only, Jul-Sep 2026) -->
+                        <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-sky-50 w-[70px]">
+                            <span class="text-[9px] font-semibold text-slate-700">{{ row.sap_quoted_qty|floatformat:"-2" }}</span>
+                        </td>
                         <!-- Reorder Qty (Editable) -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-purple-50 w-[70px]">
                             <input type="number"
@@ -230,7 +238,7 @@
                     </tr>
                     <!-- Drill-down detail row: order/release breakdown for this item -->
                     <tr id="detail-{{ row.item_id }}" class="detail-row hidden">
-                        <td colspan="{% if is_admin %}{{ dates|length|add:10 }}{% else %}{{ dates|length|add:9 }}{% endif %}" class="bg-slate-50 px-3 py-3 border-t border-b border-slate-200">
+                        <td colspan="{% if is_admin %}{{ dates|length|add:11 }}{% else %}{{ dates|length|add:10 }}{% endif %}" class="bg-slate-50 px-3 py-3 border-t border-b border-slate-200">
                             {% if row.orders %}
                             <table class="min-w-full text-[10px] border border-slate-200 rounded overflow-hidden bg-white">
                                 <thead class="bg-slate-100">
@@ -291,7 +299,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if is_admin %}{{ dates|length|add:9 }}{% else %}{{ dates|length|add:8 }}{% endif %}" class="px-6 py-8 text-center text-slate-500">
+                        <td colspan="{% if is_admin %}{{ dates|length|add:10 }}{% else %}{{ dates|length|add:9 }}{% endif %}" class="px-6 py-8 text-center text-slate-500">
                             No items found for this firm.
                         </td>
                     </tr>

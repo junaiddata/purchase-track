@@ -10,7 +10,7 @@ from django.db.models import Sum
 
 from .models import Release, QuotationItem, ItemMaster
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map
 
 
 def parse_consolidated_search_tokens(raw):
@@ -872,6 +872,7 @@ def export_consolidated_excel(request):
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
     local_map = fetch_local_open_qty_map()
+    sap_quoted_map = fetch_sap_quoted_qty_map()
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -887,9 +888,9 @@ def export_consolidated_excel(request):
 
     headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Local Open Qty', 'Import + Local', 'Stock']
     if is_admin:
-        headers += ['Sold Stock', 'Reorder Qty']
+        headers += ['Sold Stock', 'SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty']
     else:
-        headers += ['Reorder Qty']
+        headers += ['SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty']
 
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -940,6 +941,9 @@ def export_consolidated_excel(request):
         if is_admin:
             ws.cell(row=row_num, column=col, value=safe_val(data['sold_stock']) if data['sold_stock'] is not None else '-').border = thin_border
             col += 1
+        sap_quoted = sap_quoted_map.get(str(item_code).strip(), 0)
+        ws.cell(row=row_num, column=col, value=sap_quoted if sap_quoted > 0 else '-').border = thin_border
+        col += 1
         ws.cell(row=row_num, column=col, value=safe_val(data['reorder_qty'])).border = thin_border
         row_num += 1
 
@@ -1324,6 +1328,7 @@ def export_consolidated_pdf(request):
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
     local_map = fetch_local_open_qty_map()
+    sap_quoted_map = fetch_sap_quoted_qty_map()
 
     # Compute totals for KPI bar
     total_items = len(consolidated_data)
@@ -1496,9 +1501,8 @@ def export_consolidated_pdf(request):
     ])
 
     if is_admin:
-        headers.extend([('Sold', S_TH_C), ('Reorder', S_TH_C)])
-    else:
-        headers.append(('Reorder', S_TH_C))
+        headers.append(('Sold', S_TH_C))
+    headers.extend([('SAP Qty<br/>Jul-Sep 26', S_TH_C), ('Reorder', S_TH_C)])
 
     # Calculate column widths
     date_col_w = 38
@@ -1511,8 +1515,9 @@ def export_consolidated_pdf(request):
     stock_w = 36
     sold_w = 34
     reorder_w = 38
+    sap_w = 42
 
-    fixed_w = code_w + transit_w + pending_w + total_w + local_w + import_local_w + stock_w + reorder_w
+    fixed_w = code_w + transit_w + pending_w + total_w + local_w + import_local_w + stock_w + reorder_w + sap_w
     if is_admin:
         fixed_w += sold_w
     date_total_w = len(sorted_dates) * date_col_w
@@ -1522,9 +1527,8 @@ def export_consolidated_pdf(request):
     col_widths += [date_col_w] * len(sorted_dates)
     col_widths += [transit_w, pending_w, total_w, local_w, import_local_w, stock_w]
     if is_admin:
-        col_widths += [sold_w, reorder_w]
-    else:
-        col_widths += [reorder_w]
+        col_widths += [sold_w]
+    col_widths += [sap_w, reorder_w]
 
     # Build data rows
     data_rows = []
@@ -1565,6 +1569,7 @@ def export_consolidated_pdf(request):
         if is_admin:
             sold = data['sold_stock']
             row.append(Paragraph(str(sold) if sold is not None else '—', S_TD_C))
+        row.append(_p_val_or_dash(sap_quoted_map.get(str(item_code).strip(), 0), S_TD_BOLD_C))
         row.append(_p_num(data['reorder_qty'], S_TD_C))
 
         data_rows.append(row)

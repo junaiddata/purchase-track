@@ -17,7 +17,7 @@ from django.views.decorators.http import require_GET
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from collections import defaultdict
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map
 from django.core.management import call_command
 from io import StringIO
 # from decimal import Decimal
@@ -756,6 +756,7 @@ def consolidated_view(request):
     
     # Fetch Local Open Qty from external API
     local_map = fetch_local_open_qty_map()
+    sap_quoted_map = fetch_sap_quoted_qty_map()
 
     # Convert to list for template
     table_data = []
@@ -776,6 +777,7 @@ def consolidated_view(request):
             'stock': data['stock'],
             'sold_stock': data['sold_stock'],
             'reorder_qty': data['reorder_qty'],
+            'sap_quoted_qty': sap_quoted_map.get(str(item_code).strip(), 0),
             'date_quantities': date_qty_list,  # List matching sorted_dates order
             'is_fully_received': data['is_fully_received'],  # True if all orders for this item are received
             'orders': data['orders'],  # Underlying quotation/release breakdown for drill-down
