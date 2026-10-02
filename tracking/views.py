@@ -821,7 +821,7 @@ def parse_bulk_search_tokens(raw):
         return [p.lower() for p in parts]
     single = parts[0] if parts else ''
     by_space = single.split()
-    if len(by_space) > 1 and all(re.fullmatch(r'[\w.-]+', t) for t in by_space):
+    if len(by_space) > 1 and all(re.fullmatch(r'[\w.-]+', t) and re.search(r'\d', t) for t in by_space):
         return [t.lower() for t in by_space]
     return [single.lower()]
 
@@ -837,7 +837,11 @@ def item_summary_items(firm_name, search=''):
     if tokens:
         q = models.Q()
         for token in tokens:
-            q |= models.Q(item_code__icontains=token) | models.Q(item_description__icontains=token)
+            # A multi-word token (item name) needs every word in the code or description
+            token_q = models.Q()
+            for word in token.split():
+                token_q &= models.Q(item_code__icontains=word) | models.Q(item_description__icontains=word)
+            q |= token_q
         items = items.filter(q)
     return items
 

@@ -56,7 +56,7 @@
                         </div>
                         <textarea id="pipelineSearch" rows="2"
                             class="block w-full pl-8 pr-2.5 py-2 border border-slate-200 rounded-lg leading-snug bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm transition-shadow resize-y min-h-[2.75rem]"
-                            placeholder="Search or paste multiple item codes (newline, comma, or space-separated)"
+                            placeholder="Search by item code or item name (paste multiple codes: newline, comma, or space-separated)"
                             autocomplete="off"></textarea>
                     </div>
                     <p class="mt-1 text-[11px] text-slate-500">Bulk: rows matching <span class="font-medium text-slate-600">any</span> token stay visible. Excel/PDF use the same filter; multi-code exports list rows in your token order.</p>
@@ -403,16 +403,24 @@ document.addEventListener('DOMContentLoaded', function() {
         var single = parts[0] || '';
         var bySpace = single.split(/\s+/).filter(Boolean);
         if (bySpace.length > 1) {
-            var allCodeLike = bySpace.every(function(t) { return /^[\w.-]+$/.test(t); });
+            var allCodeLike = bySpace.every(function(t) { return /^[\w.-]+$/.test(t) && /\d/.test(t); });
             if (allCodeLike) return bySpace.map(function(t) { return t.toLowerCase(); });
         }
         return [single.toLowerCase()];
     }
 
+    // A multi-word token (item name) matches when every word is in the row
+    function tokenMatches(rowTextLower, token) {
+        var words = token.split(/\s+/).filter(Boolean);
+        if (words.length > 1) {
+            return words.every(function(w) { return rowTextLower.indexOf(w) !== -1; });
+        }
+        return rowTextLower.indexOf(token) !== -1;
+    }
+
     function rowMatchesTokens(rowTextLower, tokens) {
         if (tokens.length === 0) return true;
-        if (tokens.length === 1) return rowTextLower.indexOf(tokens[0]) !== -1;
-        return tokens.some(function(t) { return rowTextLower.indexOf(t) !== -1; });
+        return tokens.some(function(t) { return tokenMatches(rowTextLower, t); });
     }
 
     function updateExportLinks() {

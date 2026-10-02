@@ -41,7 +41,7 @@
                     </div>
                     <textarea name="search" id="itemSummarySearch" rows="2"
                         class="block w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg leading-snug bg-slate-50 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm shadow-sm resize-y min-h-[2.75rem]"
-                        placeholder="Search or paste multiple item codes (newline, comma, or space-separated)"
+                        placeholder="Search by item code or item name (paste multiple codes: newline, comma, or space-separated)"
                         autocomplete="off">{{ search }}</textarea>
                     {% if search %}
                     <a href="{% url 'item_summary' %}?firm={{ firm|urlencode }}" title="Clear search"

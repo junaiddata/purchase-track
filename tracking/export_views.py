@@ -28,9 +28,19 @@ def parse_consolidated_search_tokens(raw):
         return [p.lower() for p in parts]
     single = parts[0]
     by_space = [p for p in single.split() if p]
-    if len(by_space) > 1 and all(re.match(r"^[\w.-]+$", p) for p in by_space):
+    # Space-separated list of codes (every part code-like AND containing a digit) -> OR tokens.
+    # Anything else (e.g. words of an item name) stays one phrase token, matched word-by-word.
+    if len(by_space) > 1 and all(re.match(r"^[\w.-]+$", p) and re.search(r"\d", p) for p in by_space):
         return [p.lower() for p in by_space]
     return [single.lower()]
+
+
+def _text_matches_token(token, *texts):
+    """Token matches if it is a substring of any text; a multi-word token needs every word in some text."""
+    words = token.split()
+    if len(words) > 1:
+        return all(any(w in t for t in texts) for w in words)
+    return any(token in t for t in texts)
 
 
 def item_matches_consolidated_tokens(item_code, item_description, tokens):
@@ -38,16 +48,13 @@ def item_matches_consolidated_tokens(item_code, item_description, tokens):
         return True
     code_l = (item_code or "").lower()
     desc_l = (item_description or "").lower()
-    if len(tokens) == 1:
-        t = tokens[0]
-        return t in code_l or t in desc_l
-    return any(t in code_l or t in desc_l for t in tokens)
+    return any(_text_matches_token(t, code_l, desc_l) for t in tokens)
 
 
 def _key_matches_single_token(key, t):
     code_l = key[0].lower()
     desc_l = (key[1] or "").lower()
-    return t in code_l or t in desc_l
+    return _text_matches_token(t, code_l, desc_l)
 
 
 def ordered_consolidated_keys(keys, tokens):
