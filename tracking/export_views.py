@@ -1693,12 +1693,12 @@ def export_consolidated_pdf(request):
 
 ITEM_SUMMARY_HEADERS = [
     'Item Code', 'Description', 'Stock Qty', 'Ordered Qty', 'Ordered Price',
-    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock', 'Expected Date',
+    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock','SAP Quoted Qty', 'Expected Date',
 ]
 # Keys of the columns after Item Code / Description, in display order
 ITEM_SUMMARY_VALUE_KEYS = [
     'stock', 'ordered', 'ordered_price', 'pending_at_factory', 'in_transit',
-    'reorder_qty', 'sold_stock', 'expected_date',
+    'reorder_qty', 'sold_stock', 'sap_quoted_qty', 'expected_date',
 ]
 ITEM_SUMMARY_QTY_KEYS = ['stock', 'ordered', 'pending_at_factory', 'in_transit', 'reorder_qty', 'sold_stock']
 

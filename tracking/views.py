@@ -914,11 +914,14 @@ def build_item_summary_rows(firm_name, search='', items=None):
             if t['expected_date'] is None or earliest < t['expected_date']:
                 t['expected_date'] = earliest
 
+    sap_quoted_map = fetch_sap_quoted_qty_map()
+
     rows = []
     empty_totals = new_totals()
     for item in items:
         t = totals.get(item.id, empty_totals)
         rows.append({
+            'sap_quoted_qty': sap_quoted_map.get(str(item.item_code).strip(), 0),
             'item_code': item.item_code,
             'item_description': item.item_description,
             'stock': item.item_stock or 0,
