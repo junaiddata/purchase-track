@@ -966,17 +966,30 @@ def item_summary(request):
     supplier_logo = supplier.logo if supplier and supplier.logo else None
 
     search = request.GET.get('search', '').strip()
-    paginator = Paginator(item_summary_items(firm_name, search), ITEM_SUMMARY_PAGE_SIZE)
+    only_zero_stock = request.GET.get('only_zero') == '1'
+    hide_zero_stock = request.GET.get('hide_zero') == '1' and not only_zero_stock
+    summary_items = item_summary_items(firm_name, search)
+    if only_zero_stock:
+        summary_items = summary_items.filter(models.Q(item_stock__isnull=True) | models.Q(item_stock=0))
+    elif hide_zero_stock:
+        summary_items = summary_items.exclude(models.Q(item_stock__isnull=True) | models.Q(item_stock=0))
+    paginator = Paginator(summary_items, ITEM_SUMMARY_PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get('page'))
 
     # Query string (firm + search) reused by pagination and export links
     base_params = {'firm': firm_name}
     if search:
         base_params['search'] = search
+    if hide_zero_stock:
+        base_params['hide_zero'] = '1'
+    if only_zero_stock:
+        base_params['only_zero'] = '1'
 
     return render(request, 'tracking/item_summary.html', {
         'firm': firm_name,
         'search': search,
+        'hide_zero_stock': hide_zero_stock,
+        'only_zero_stock': only_zero_stock,
         'rows': build_item_summary_rows(firm_name, items=page_obj.object_list),
         'page_obj': page_obj,
         'page_range': paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1),

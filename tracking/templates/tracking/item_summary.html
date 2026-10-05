@@ -53,6 +53,18 @@
                     {% endif %}
                 </div>
                 <p class="mt-1 text-[11px] text-slate-500">Bulk: items matching <span class="font-medium text-slate-600">any</span> code/description stay visible. Excel/PDF use the same filter.</p>
+                <label class="mt-1.5 inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" name="hide_zero" value="1" class="sr-only peer" {% if hide_zero_stock %}checked{% endif %}
+                           onchange="if (this.checked) this.form.only_zero.checked = false; this.form.submit()">
+                    <span class="relative w-8 h-4 rounded-full bg-slate-300 peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"></span>
+                    <span class="text-xs font-medium text-slate-600">Hide 0 Stock Qty</span>
+                </label>
+                <label class="mt-1.5 ml-4 inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" name="only_zero" value="1" class="sr-only peer" {% if only_zero_stock %}checked{% endif %}
+                           onchange="if (this.checked) this.form.hide_zero.checked = false; this.form.submit()">
+                    <span class="relative w-8 h-4 rounded-full bg-slate-300 peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"></span>
+                    <span class="text-xs font-medium text-slate-600">Show only 0 Stock Qty</span>
+                </label>
             </form>
             <script>
                 (function () {
