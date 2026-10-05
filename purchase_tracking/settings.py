@@ -145,3 +145,6 @@ QUOTATION_TOTALS_API_URL = env('QUOTATION_TOTALS_API_URL', default='')
 QUOTATION_API_KEY = env('QUOTATION_API_KEY', default='')
 QUOTATION_TOTALS_API_URL = env('QUOTATION_TOTALS_API_URL', default='')
 QUOTATION_API_KEY = env('QUOTATION_API_KEY')
+
+# API key for the external Consolidated Qty API (sent as X-API-Key header)
+CONSOLIDATED_API_KEY = env('CONSOLIDATED_API_KEY', default='')

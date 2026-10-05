@@ -1600,3 +1600,42 @@ def api_item_totals(request):
     #            for code in sorted(all_codes)]
 
     return JsonResponse(payload, safe=False)
+
+
+@require_GET
+def api_consolidated_qty(request):
+    """
+    External read-only API: Total Qty Ordered (on the way + pending at factory) per item,
+    for every item on the Consolidated page, with its brand. Secured by an API key sent in
+    the `X-API-Key` header (or `?api_key=`). Optional `?firm=` limits it to one brand.
+    """
+    import hmac
+    from django.conf import settings
+
+    expected_key = getattr(settings, 'CONSOLIDATED_API_KEY', '')
+    if not expected_key:
+        return JsonResponse({'error': 'API key not configured'}, status=503)
+    provided_key = request.headers.get('X-API-Key') or request.GET.get('api_key', '')
+    if not hmac.compare_digest(provided_key.encode(), expected_key.encode()):
+        return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
+
+    firm_name = request.GET.get('firm')
+    quotation_items = QuotationItem.objects.filter(
+        quotation__status__in=['CONFIRMED', 'COMPLETED']
+    ).select_related('item').prefetch_related('releases').order_by('item__item_firm', 'item__item_code')
+    if firm_name:
+        quotation_items = quotation_items.filter(item__item_firm=firm_name)
+
+    totals = {}
+    for q_item in quotation_items:
+        on_the_way = sum(r.quantity_released for r in q_item.releases.all() if not r.is_received)
+        pending_at_factory = max(0, q_item.balance_to_release)
+        item = q_item.item
+        key = (item.item_firm, item.item_code)
+        totals[key] = totals.get(key, 0) + on_the_way + pending_at_factory
+
+    items = [
+        {'brand': brand, 'item_code': code, 'total_qty_ordered': qty}
+        for (brand, code), qty in sorted(totals.items())
+    ]
+    return JsonResponse({'count': len(items), 'items': items})
