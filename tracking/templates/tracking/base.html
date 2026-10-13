@@ -61,8 +61,8 @@
 
     <!-- Navbar -->
     <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 gap-4">
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
                         <img src="https://sp-ao.shortpixel.ai/client/to_webp,q_glossy,ret_img,w_422/https://junaidworld.com/wp-content/uploads/2023/09/footer-logo.png.webp"
@@ -71,7 +71,7 @@
                                 class="text-slate-900">Track</span></span>
                     </div>
                     {% if user.is_authenticated %}
-                    <div class="hidden min-[1150px]:ml-6 min-[1150px]:flex min-[1150px]:space-x-4 xl:space-x-6">
+                    <div class="hidden min-[1150px]:ml-6 min-[1150px]:flex min-[1150px]:space-x-4 2xl:space-x-6">
                         {% if user.profile.role == 'SALESMAN' %}
                         <a href="{% url 'sales_dashboard' %}"
                             class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
@@ -113,7 +113,7 @@
                     <!-- Desktop user block -->
                     <div class="hidden min-[1150px]:flex items-center space-x-3 whitespace-nowrap">
                         <span class="text-sm text-slate-500">
-                            <span class="hidden xl:inline">{{ user.username }}</span>
+                            <span class="hidden 2xl:inline">{{ user.username }}</span>
                             <span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-1">
                                 {% if user.profile.role == 'SALESMAN' %}User{% else %}{{user.profile.role|default:"User" }}{% endif %}
                             </span>
