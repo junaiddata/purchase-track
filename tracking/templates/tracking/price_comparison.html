@@ -1,0 +1,314 @@
+{% extends 'tracking/base.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-4 px-4 sm:px-6 lg:px-8 bg-slate-50 min-h-screen">
+    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Brand Price Comparison</h1>
+            <p class="text-sm text-slate-600 mt-0.5">Pick items from different brands. The result updates automatically.</p>
+        </div>
+        <a href="{% url 'dashboard' %}" class="text-sm text-slate-600 hover:text-brand-600">&larr; Back to Dashboard</a>
+    </div>
+
+    <!-- Selection card -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 sm:p-4 mb-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
+            <div class="flex items-center gap-2">
+                <label for="basis" class="text-sm font-medium text-slate-700 whitespace-nowrap">Compare using:</label>
+                <select id="basis" class="flex-1 sm:flex-none border border-slate-300 rounded-md text-base sm:text-sm px-2 py-2 sm:py-1.5">
+                    <option value="cost">Cost Price</option>
+                    <option value="selling">Selling Price</option>
+                    <option value="last_rate">Last Purchase Rate</option>
+                </select>
+            </div>
+            <div class="flex gap-2 sm:ml-auto">
+                <button type="button" id="clear-all"
+                        class="flex-1 sm:flex-none text-sm border border-slate-300 text-slate-700 px-3 py-2 sm:py-1.5 rounded-md hover:bg-slate-100">
+                    Clear all
+                </button>
+                <button type="button" id="add-row"
+                        class="flex-1 sm:flex-none text-sm bg-brand-600 text-white px-3 py-2 sm:py-1.5 rounded-md hover:opacity-90">
+                    + Add another item
+                </button>
+            </div>
+        </div>
+
+        <div id="rows" class="space-y-3"></div>
+    </div>
+
+    <!-- Verdict -->
+    <div id="verdict" class="hidden mb-4 rounded-lg border border-green-300 bg-green-50 p-3 sm:p-4 text-sm text-green-900 break-words"></div>
+    <div id="warnings" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 break-words"></div>
+
+    <!-- Results: cards on phones, table on tablets/desktops -->
+    <div id="result-card" class="hidden">
+      <div id="result-cards" class="md:hidden space-y-3"></div>
+      <div class="hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-100 text-slate-600">
+                <tr>
+                    <th class="px-3 py-2 text-left">Rank</th>
+                    <th class="px-3 py-2 text-left">Brand</th>
+                    <th class="px-3 py-2 text-left">Item Code</th>
+                    <th class="px-3 py-2 text-left">Description</th>
+                    <th class="px-3 py-2 text-right">Price</th>
+                    <th class="px-3 py-2 text-right">Difference</th>
+                    <th class="px-3 py-2 text-right">% Higher</th>
+                    <th class="px-3 py-2 text-right">Stock</th>
+                </tr>
+            </thead>
+            <tbody id="result-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <p id="hint" class="text-sm text-slate-500 mt-4">Select at least 2 items to see the comparison.</p>
+</div>
+
+{{ firms|json_script:"firms-data" }}
+<script>
+(function () {
+    const rowsEl = document.getElementById('rows');
+    const basisEl = document.getElementById('basis');
+    const FIRMS = JSON.parse(document.getElementById('firms-data').textContent);
+    const itemsCache = {};   // firm -> items list
+    let debounce = null;
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ---- Reusable searchable dropdown --------------------------------------
+    function makeCombo(wrap, placeholder, onPick) {
+        wrap.classList.add('relative');
+        wrap.innerHTML = `
+            <input type="text" autocomplete="off" placeholder="${placeholder}"
+                   class="w-full border border-slate-300 rounded-md text-base sm:text-sm px-2 py-2 sm:py-1.5 disabled:bg-slate-100">
+            <ul class="hidden absolute z-30 left-0 right-0 mt-1 max-h-60 sm:max-h-64 overflow-auto bg-white border border-slate-300 rounded-md shadow-lg text-sm break-words"></ul>`;
+        const input = wrap.querySelector('input');
+        const list = wrap.querySelector('ul');
+        const MAX = 100;
+        let options = [], selected = null, shown = [], active = -1;
+
+        function filter() {
+            // When the box shows the chosen option, list everything; otherwise filter by what was typed
+            const q = (selected && input.value === selected.label) ? '' : input.value.trim().toLowerCase();
+            const tokens = q.split(/\s+/).filter(Boolean);
+            return options.filter(o => tokens.every(t => o.search.includes(t)));
+        }
+
+        function paint() {
+            shown = filter();
+            active = shown.length ? 0 : -1;
+            list.innerHTML = shown.length
+                ? shown.slice(0, MAX).map((o, i) =>
+                    `<li data-i="${i}" class="px-2 py-2.5 sm:py-1.5 cursor-pointer ${i === active ? 'bg-slate-100' : ''} hover:bg-slate-100">${esc(o.label)}</li>`).join('') +
+                  (shown.length > MAX ? `<li class="px-2 py-1 text-xs text-slate-400">${shown.length - MAX} more... keep typing to narrow down</li>` : '')
+                : '<li class="px-2 py-1.5 text-slate-400">No matches</li>';
+        }
+
+        function open() { paint(); list.classList.remove('hidden'); }
+        function close() { list.classList.add('hidden'); }
+
+        function highlight() {
+            list.querySelectorAll('li[data-i]').forEach(li => {
+                const on = Number(li.dataset.i) === active;
+                li.classList.toggle('bg-slate-100', on);
+                if (on) li.scrollIntoView({block: 'nearest'});
+            });
+        }
+
+        function pick(o) {
+            selected = o;
+            input.value = o.label;
+            close();
+            onPick(o);
+        }
+
+        input.addEventListener('focus', () => { input.select(); open(); });
+        input.addEventListener('click', open);
+        input.addEventListener('input', () => {
+            if (selected && input.value !== selected.label) { selected = null; onPick(null); }
+            open();
+        });
+        input.addEventListener('keydown', e => {
+            if (list.classList.contains('hidden') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { open(); return; }
+            if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, Math.min(shown.length, MAX) - 1); highlight(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); highlight(); }
+            else if (e.key === 'Enter') { e.preventDefault(); if (shown[active]) pick(shown[active]); }
+            else if (e.key === 'Escape') { close(); }
+        });
+        // mousedown (not click) so it fires before the input loses focus
+        list.addEventListener('mousedown', e => {
+            const li = e.target.closest('li[data-i]');
+            if (li) { e.preventDefault(); pick(shown[Number(li.dataset.i)]); }
+        });
+        input.addEventListener('blur', () => {
+            close();
+            input.value = selected ? selected.label : '';   // discard text that isn't a real choice
+        });
+
+        return {
+            setOptions(opts) {
+                options = opts.map(o => ({...o, search: (o.search || o.label).toLowerCase()}));
+                selected = null; input.value = '';
+            },
+            setDisabled(d) { input.disabled = d; },
+            setPlaceholder(p) { input.placeholder = p; },
+            clear() { options = []; selected = null; input.value = ''; },
+        };
+    }
+
+    function addRow() {
+        const div = document.createElement('div');
+        div.className = 'compare-row flex flex-col gap-2 p-3 border border-slate-200 rounded-md sm:flex-row sm:items-center sm:p-0 sm:border-0';
+        div.innerHTML = `
+            <div class="firm-wrap w-full sm:w-48 sm:flex-shrink-0"></div>
+            <div class="item-wrap w-full sm:flex-1 sm:min-w-0"></div>
+            <button type="button" class="remove self-end sm:self-auto text-red-500 text-sm px-3 py-1 border border-red-200 rounded-md sm:border-0 hover:bg-red-50"
+                    aria-label="Remove this row"><span class="sm:hidden">Remove</span><span class="hidden sm:inline text-lg leading-none">&times;</span></button>`;
+        rowsEl.appendChild(div);
+
+        let loadToken = 0;
+        const itemCombo = makeCombo(div.querySelector('.item-wrap'), 'Select a brand first', o => {
+            div.dataset.itemId = o ? o.value : '';
+            refresh();
+        });
+        itemCombo.setDisabled(true);
+
+        const firmCombo = makeCombo(div.querySelector('.firm-wrap'), 'Search brand...', async o => {
+            const token = ++loadToken;
+            div.dataset.itemId = '';
+            itemCombo.clear();
+            if (!o) { itemCombo.setDisabled(true); itemCombo.setPlaceholder('Select a brand first'); refresh(); return; }
+            itemCombo.setDisabled(true);
+            itemCombo.setPlaceholder('Loading items...');
+            const firm = o.value;
+            if (!itemsCache[firm]) {
+                const r = await fetch('{% url "get_items_by_firm" %}?firm=' + encodeURIComponent(firm));
+                itemsCache[firm] = (await r.json()).items;
+            }
+            if (token !== loadToken) return;   // brand changed meanwhile, ignore this response
+            itemCombo.setOptions(itemsCache[firm].map(i => ({
+                value: String(i.id),
+                label: i.item_code + ' - ' + (i.item_description || ''),
+                search: [i.item_code, i.item_description, i.item_upvc].join(' '),
+            })));
+            itemCombo.setDisabled(false);
+            itemCombo.setPlaceholder('Search item code / description...');
+            refresh();
+        });
+        firmCombo.setOptions(FIRMS.map(f => ({value: f, label: f})));
+
+        div.querySelector('.remove').addEventListener('click', () => { div.remove(); refresh(); });
+    }
+
+    function refresh() {
+        clearTimeout(debounce);
+        debounce = setTimeout(run, 250);
+    }
+
+    async function run() {
+        const ids = [];
+        document.querySelectorAll('.compare-row').forEach(r => {
+            const id = r.dataset.itemId;
+            if (id && !ids.includes(id)) ids.push(id);
+        });
+
+        const hint = document.getElementById('hint');
+        const card = document.getElementById('result-card');
+        const verdict = document.getElementById('verdict');
+        const warn = document.getElementById('warnings');
+
+        if (ids.length < 2) {
+            card.classList.add('hidden'); verdict.classList.add('hidden'); warn.classList.add('hidden');
+            hint.classList.remove('hidden');
+            return;
+        }
+        hint.classList.add('hidden');
+
+        const url = '{% url "api_compare_items" %}?ids=' + ids.join(',') +
+                    '&basis=' + basisEl.value;
+        const data = await (await fetch(url)).json();
+        render(data);
+    }
+
+    function render(data) {
+        const card = document.getElementById('result-card');
+        const verdict = document.getElementById('verdict');
+        const warn = document.getElementById('warnings');
+        const body = document.getElementById('result-body');
+
+        // Warnings
+        const msgs = (data.excluded || []).map(e => `${esc(e.label)}: ${esc(e.reason)} (excluded from ranking)`);
+        if (data.verdict && data.verdict.mixed_currency) msgs.push('Prices are in different currencies, so the comparison may not be accurate.');
+        if (msgs.length) { warn.innerHTML = msgs.join('<br>'); warn.classList.remove('hidden'); } else { warn.classList.add('hidden'); }
+
+        // Verdict
+        if (data.verdict) {
+            const v = data.verdict;
+            verdict.innerHTML = `<b>${esc(v.cheapest_label)}</b> is the cheapest at <b>${v.cheapest_price.toFixed(2)}</b> per piece (${esc(data.basis_label)}).
+                Compared with <b>${esc(v.dearest_label)}</b> (${v.dearest_price.toFixed(2)}), choosing the cheapest saves
+                <b>${v.saving.toFixed(2)}</b> per piece (<b>${v.saving_pct.toFixed(1)}%</b>).`;
+            verdict.classList.remove('hidden');
+        } else {
+            verdict.classList.add('hidden');
+        }
+
+        if (!data.rows.length) { card.classList.add('hidden'); return; }
+
+        body.innerHTML = data.rows.map(r => {
+            const best = r.rank === 1;
+            const worst = r.rank === data.rows.length && data.rows.length > 1;
+            const cls = best ? 'bg-green-50' : (worst ? 'bg-red-50' : '');
+            const badge = best ? '<span class="ml-1 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">Cheapest</span>' : '';
+            return `<tr class="border-t ${cls}">
+                <td class="px-3 py-2 font-semibold">${r.rank}</td>
+                <td class="px-3 py-2">${esc(r.brand)}${badge}</td>
+                <td class="px-3 py-2">${esc(r.item_code)}</td>
+                <td class="px-3 py-2 text-slate-600 min-w-[240px]">${esc(r.description || '')}</td>
+                <td class="px-3 py-2 text-right">${r.raw_price.toFixed(2)} ${esc(r.currency)}</td>
+                <td class="px-3 py-2 text-right ${best ? 'text-green-700' : 'text-red-600'}">${best ? '-' : '+' + r.diff.toFixed(2)}</td>
+                <td class="px-3 py-2 text-right ${best ? 'text-green-700' : 'text-red-600'}">${best ? '-' : '+' + r.diff_pct.toFixed(1) + '%'}</td>
+                <td class="px-3 py-2 text-right">${r.stock}</td>
+            </tr>`;
+        }).join('');
+
+        // Phone layout: one card per item
+        document.getElementById('result-cards').innerHTML = data.rows.map(r => {
+            const best = r.rank === 1;
+            const worst = r.rank === data.rows.length && data.rows.length > 1;
+            const tone = best ? 'border-green-300 bg-green-50' : (worst ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white');
+            const diffCls = best ? 'text-green-700' : 'text-red-600';
+            const badge = best ? '<span class="ml-2 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">Cheapest</span>' : '';
+            return `<div class="rounded-lg border p-3 text-sm ${tone}">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="font-semibold text-slate-900 break-words">#${r.rank} ${esc(r.brand)}${badge}</div>
+                    <div class="font-bold text-slate-900 whitespace-nowrap">${r.raw_price.toFixed(2)} ${esc(r.currency)}</div>
+                </div>
+                <div class="text-slate-700 mt-0.5 break-words">${esc(r.item_code)}</div>
+                <div class="text-slate-600 mt-1 break-words">${esc(r.description || '')}</div>
+                <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-black/10 text-xs">
+                    <div><div class="text-slate-500">Difference</div><div class="font-semibold ${diffCls}">${best ? '-' : '+' + r.diff.toFixed(2)}</div></div>
+                    <div><div class="text-slate-500">% Higher</div><div class="font-semibold ${diffCls}">${best ? '-' : '+' + r.diff_pct.toFixed(1) + '%'}</div></div>
+                    <div><div class="text-slate-500">Stock</div><div class="font-semibold text-slate-800">${r.stock}</div></div>
+                </div>
+            </div>`;
+        }).join('');
+        card.classList.remove('hidden');
+    }
+
+    basisEl.addEventListener('change', refresh);
+    document.getElementById('add-row').addEventListener('click', addRow);
+    document.getElementById('clear-all').addEventListener('click', () => {
+        rowsEl.innerHTML = '';
+        basisEl.value = 'cost';
+        addRow(); addRow();   // back to two empty rows
+        run();                // hides the result/verdict/warnings
+    });
+    addRow(); addRow();   // start with two rows
+})();
+</script>
+{% endblock %}
+

@@ -71,34 +71,38 @@
                                 class="text-slate-900">Track</span></span>
                     </div>
                     {% if user.is_authenticated %}
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                    <div class="hidden min-[1150px]:ml-6 min-[1150px]:flex min-[1150px]:space-x-4 xl:space-x-6">
                         {% if user.profile.role == 'SALESMAN' %}
                         <a href="{% url 'sales_dashboard' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
                             Purchase View
                         </a>
                         {% else %}
                         <!-- Admin / Default links -->
                         <a href="{% url 'dashboard' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
                             Dashboard
                         </a>
                         <a href="{% url 'quotation_list' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Purchase Quotations 
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
+                            Purchase Quotations
                         </a>
                         <a href="{% url 'manufacturer_list' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
                             Manufacturers
                         </a>
 
                         <a href="{% url 'sales_dashboard' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
                             User View
                         </a>
                         <a href="{% url 'item_summary' %}"
-                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
                             Item Summary
+                        </a>
+                        <a href="{% url 'price_comparison' %}"
+                            class="border-transparent text-slate-500 hover:border-brand-500 hover:text-slate-900 inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium">
+                            Price Compare
                         </a>
                         {% endif %}
                     </div>
@@ -106,14 +110,28 @@
                 </div>
                 <div class="flex items-center">
                     {% if user.is_authenticated %}
-                    <div class="flex items-center space-x-4">
+                    <!-- Desktop user block -->
+                    <div class="hidden min-[1150px]:flex items-center space-x-3 whitespace-nowrap">
                         <span class="text-sm text-slate-500">
-                            {{ user.username }} <span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-1">
+                            <span class="hidden xl:inline">{{ user.username }}</span>
+                            <span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-1">
                                 {% if user.profile.role == 'SALESMAN' %}User{% else %}{{user.profile.role|default:"User" }}{% endif %}
                             </span>
-                            <a href="{% url 'logout' %}"
-                                class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
+                        </span>
+                        <a href="{% url 'logout' %}"
+                            class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
                     </div>
+                    <!-- Mobile / tablet menu button -->
+                    <button type="button" id="mobile-menu-btn"
+                        class="min-[1150px]:hidden inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:bg-slate-100 focus:outline-none"
+                        aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+                        <svg id="menu-icon-open" class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg id="menu-icon-close" class="h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                     {% else %}
                     <a href="{% url 'login' %}"
                         class="text-sm font-medium text-brand-600 hover:text-brand-500">Login</a>
@@ -121,6 +139,46 @@
                 </div>
             </div>
         </div>
+
+        {% if user.is_authenticated %}
+        <!-- Mobile / tablet menu panel -->
+        <div id="mobile-menu" class="hidden min-[1150px]:hidden border-t border-slate-200 bg-white">
+            <div class="px-4 sm:px-6 py-2 space-y-1">
+                {% if user.profile.role == 'SALESMAN' %}
+                <a href="{% url 'sales_dashboard' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Purchase View</a>
+                {% else %}
+                <a href="{% url 'dashboard' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Dashboard</a>
+                <a href="{% url 'quotation_list' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Purchase Quotations</a>
+                <a href="{% url 'manufacturer_list' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Manufacturers</a>
+                <a href="{% url 'sales_dashboard' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">User View</a>
+                <a href="{% url 'item_summary' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Item Summary</a>
+                <a href="{% url 'price_comparison' %}" class="block px-3 py-2.5 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">Price Compare</a>
+                {% endif %}
+            </div>
+            <div class="px-4 sm:px-6 py-3 border-t border-slate-200 flex items-center justify-between">
+                <span class="text-sm text-slate-600">
+                    {{ user.username }}
+                    <span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-1">
+                        {% if user.profile.role == 'SALESMAN' %}User{% else %}{{user.profile.role|default:"User" }}{% endif %}
+                    </span>
+                </span>
+                <a href="{% url 'logout' %}" class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
+            </div>
+        </div>
+        <script>
+            (function () {
+                var btn = document.getElementById('mobile-menu-btn');
+                var menu = document.getElementById('mobile-menu');
+                if (!btn || !menu) return;
+                btn.addEventListener('click', function () {
+                    var open = menu.classList.toggle('hidden') === false;
+                    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    document.getElementById('menu-icon-open').classList.toggle('hidden', open);
+                    document.getElementById('menu-icon-close').classList.toggle('hidden', !open);
+                });
+            })();
+        </script>
+        {% endif %}
     </nav>
 
     <!-- Main Content -->

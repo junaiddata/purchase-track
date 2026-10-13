@@ -128,6 +128,7 @@
                     <tr>
                         <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Item Code</th>
                         <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Description</th>
+                        <th scope="col" class="px-3 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">UPC Code</th>
                         <th scope="col" class="px-3 py-2 text-right text-xs font-bold text-slate-600 uppercase tracking-wider bg-slate-100">Stock Qty</th>
                         <th scope="col" class="px-3 py-2 text-right text-xs font-bold text-slate-600 uppercase tracking-wider bg-blue-50">Ordered Qty</th>
                         <th scope="col" class="px-3 py-2 text-right text-xs font-bold text-slate-600 uppercase tracking-wider bg-blue-50">Ordered Price</th>
@@ -145,6 +146,7 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-3 py-2 whitespace-nowrap font-semibold text-slate-900">{{ row.item_code }}</td>
                         <td class="px-3 py-2 text-slate-600">{{ row.item_description }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap tabular-nums {% if not row.upc_code %}text-slate-400{% else %}text-slate-600{% endif %}">{% if row.upc_code %}{{ row.upc_code }}{% else %}&mdash;{% endif %}</td>
                         <td class="px-3 py-2 text-right tabular-nums">{{ row.stock }}</td>
                         <td class="px-3 py-2 text-right tabular-nums font-medium">{{ row.ordered }}</td>
                         <td class="px-3 py-2 text-right tabular-nums {% if row.ordered_price is None %}text-slate-400{% endif %}">{% if row.ordered_price is None %}&mdash;{% else %}{{ row.ordered_price|floatformat:2 }}{% endif %}</td>
@@ -157,7 +159,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="px-3 py-8 text-center text-slate-500">{% if search %}No items match your search.{% else %}No items found for this brand.{% endif %}</td>
+                        <td colspan="12" class="px-3 py-8 text-center text-slate-500">{% if search %}No items match your search.{% else %}No items found for this brand.{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

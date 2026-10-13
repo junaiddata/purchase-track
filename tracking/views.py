@@ -924,6 +924,7 @@ def build_item_summary_rows(firm_name, search='', items=None):
             'sap_quoted_qty': sap_quoted_map.get(str(item.item_code).strip(), 0),
             'item_code': item.item_code,
             'item_description': item.item_description,
+            'upc_code': item.item_upvc or '',
             'stock': item.item_stock or 0,
             'ordered': t['ordered'],
             'ordered_price': t['ordered_price'],
@@ -1639,3 +1640,131 @@ def api_consolidated_qty(request):
         for (brand, code), qty in sorted(totals.items())
     ]
     return JsonResponse({'count': len(items), 'items': items})
+
+
+# ---------------------------------------------------------------------------
+# Brand Price Comparison
+# ---------------------------------------------------------------------------
+from decimal import Decimal, InvalidOperation
+
+PRICE_BASIS_LABELS = {
+    'cost': 'Cost Price',
+    'selling': 'Selling Price',
+    'last_rate': 'Last Purchase Rate',
+}
+
+
+@never_cache
+@login_required
+@admin_required
+def price_comparison(request):
+    firms = (ItemMaster.objects.exclude(item_firm='')
+             .values_list('item_firm', flat=True).distinct().order_by('item_firm'))
+    return render(request, 'tracking/price_comparison.html', {'firms': list(firms)})
+
+
+@never_cache
+@login_required
+@admin_required
+def api_compare_items(request):
+    """
+    GET ?ids=12,45,78&basis=cost&qty_per_unit=1,10,1
+    Returns items ranked cheapest first with difference vs cheapest.
+    """
+    basis = request.GET.get('basis', 'cost')
+    if basis not in PRICE_BASIS_LABELS:
+        basis = 'cost'
+
+    try:
+        ids = [int(x) for x in request.GET.get('ids', '').split(',') if x.strip()]
+    except ValueError:
+        return JsonResponse({'error': 'Invalid ids'}, status=400)
+
+    # Optional "qty per unit" (pack size) for each id, same order as ids
+    pack_raw = [x.strip() for x in request.GET.get('qty_per_unit', '').split(',')]
+    pack_map = {}
+    for idx, item_id in enumerate(ids):
+        try:
+            val = Decimal(pack_raw[idx]) if idx < len(pack_raw) and pack_raw[idx] else Decimal('1')
+            pack_map[item_id] = val if val > 0 else Decimal('1')
+        except (InvalidOperation, ValueError):
+            pack_map[item_id] = Decimal('1')
+
+    items = {i.id: i for i in ItemMaster.objects.filter(id__in=ids)}
+
+    # Latest purchase rate per item (only needed for 'last_rate')
+    last_rates = {}
+    if basis == 'last_rate':
+        lines = (QuotationItem.objects
+                 .filter(item_id__in=ids, quotation__status__in=['CONFIRMED', 'COMPLETED'])
+                 .order_by('quotation__created_at', 'id')
+                 .values('item_id', 'rate', 'quotation__currency'))
+        for ln in lines:  # oldest -> newest, last one wins
+            last_rates[ln['item_id']] = (ln['rate'], ln['quotation__currency'])
+
+    rows, excluded = [], []
+    for item_id in ids:
+        item = items.get(item_id)
+        if not item:
+            continue
+        currency = ''
+        if basis == 'cost':
+            price = item.item_cost
+        elif basis == 'selling':
+            price = item.item_price
+        else:
+            price, currency = last_rates.get(item_id, (None, ''))
+
+        label = f"{item.item_firm} - {item.item_code}"
+        if price is None or price <= 0:
+            excluded.append({'label': label, 'reason': 'No price available'})
+            continue
+
+        pack = pack_map.get(item_id, Decimal('1'))
+        unit_price = price / pack
+        rows.append({
+            'id': item.id,
+            'brand': item.item_firm,
+            'item_code': item.item_code,
+            'description': item.item_description,
+            'stock': item.item_stock,
+            'currency': currency,
+            'raw_price': float(price),
+            'qty_per_unit': float(pack),
+            'unit_price': float(unit_price),
+        })
+
+    rows.sort(key=lambda r: r['unit_price'])
+
+    verdict = None
+    if rows:
+        cheapest = rows[0]['unit_price']
+        for r in rows:
+            r['diff'] = round(r['unit_price'] - cheapest, 4)
+            r['diff_pct'] = round((r['diff'] / cheapest) * 100, 2) if cheapest else 0
+            r['rank'] = rows.index(r) + 1
+
+        # Mixed currencies only matter for the purchase-rate basis
+        currencies = {r['currency'] for r in rows if r['currency']}
+        mixed_currency = len(currencies) > 1
+
+        if len(rows) >= 2:
+            dearest = rows[-1]
+            saving = dearest['unit_price'] - cheapest
+            saving_pct = (saving / dearest['unit_price']) * 100 if dearest['unit_price'] else 0
+            verdict = {
+                'cheapest_label': f"{rows[0]['brand']} ({rows[0]['item_code']})",
+                'cheapest_price': round(cheapest, 2),
+                'dearest_label': f"{dearest['brand']} ({dearest['item_code']})",
+                'dearest_price': round(dearest['unit_price'], 2),
+                'saving': round(saving, 2),
+                'saving_pct': round(saving_pct, 2),
+                'mixed_currency': mixed_currency,
+            }
+
+    return JsonResponse({
+        'basis_label': PRICE_BASIS_LABELS[basis],
+        'rows': rows,
+        'excluded': excluded,
+        'verdict': verdict,
+    })
