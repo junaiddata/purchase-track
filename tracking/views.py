@@ -681,7 +681,7 @@ def consolidated_view(request):
     #   'is_fully_received': boolean - True if all items received
     # }
     consolidated_data = {}
-    all_dates = set()
+    all_dates = {}  # date_str -> date, so sorting doesn't depend on re-parsing the string
     
     for q_item in quotation_items:
         # Calculate on the way (released but not received)
@@ -722,7 +722,7 @@ def consolidated_view(request):
                 # Use shorter date format for compact display
                 date_str = release.expected_arrival_date.strftime('%b %d %Y')
                 consolidated_data[key]['dates'][date_str] += release.quantity_released
-                all_dates.add(date_str)
+                all_dates[date_str] = release.expected_arrival_date
 
         # Add quantities
         consolidated_data[key]['on_the_way'] += on_the_way
@@ -752,7 +752,7 @@ def consolidated_view(request):
         })
     
     # Sort dates chronologically
-    sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
+    sorted_dates = sorted(all_dates, key=all_dates.get)
     
     # Fetch Local Open Qty from external API
     local_map = fetch_local_open_qty_map()
