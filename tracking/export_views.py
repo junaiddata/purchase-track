@@ -10,7 +10,7 @@ from django.db.models import Sum
 
 from .models import Release, QuotationItem, ItemMaster
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, calc_reorder_qty
 
 
 def parse_consolidated_search_tokens(raw):
@@ -859,7 +859,7 @@ def export_consolidated_excel(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': item.reorder_qty or 0,
+                'reorder_qty': calc_reorder_qty(item.total_qty),
                 'is_fully_received': True,
             }
 
@@ -895,9 +895,9 @@ def export_consolidated_excel(request):
 
     headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Local Open Qty', 'Import + Local', 'Stock']
     if is_admin:
-        headers += ['Sold Stock', 'SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty']
+        headers += ['Sold Stock', 'SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty on Sold Stock']
     else:
-        headers += ['SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty']
+        headers += ['SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty on Sold Stock']
 
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -1314,7 +1314,7 @@ def export_consolidated_pdf(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': item.reorder_qty or 0,
+                'reorder_qty': calc_reorder_qty(item.total_qty),
                 'is_fully_received': True,
             }
 
@@ -1509,7 +1509,7 @@ def export_consolidated_pdf(request):
 
     if is_admin:
         headers.append(('Sold', S_TH_C))
-    headers.extend([('SAP Qty<br/>Jul-Sep 26', S_TH_C), ('Reorder', S_TH_C)])
+    headers.extend([('SAP Qty<br/>Jul-Sep 26', S_TH_C), ('Reorder on<br/>Sold Stock', S_TH_C)])
 
     # Calculate column widths
     date_col_w = 38
@@ -1693,7 +1693,7 @@ def export_consolidated_pdf(request):
 
 ITEM_SUMMARY_HEADERS = [
     'Item Code', 'Description', 'Stock Qty', 'Ordered Qty', 'Ordered Price',
-    'Pending at Factory', 'In-Transit', 'Reorder Qty', 'Sold Stock','SAP Quoted Qty', 'Expected Date',
+    'Pending at Factory', 'In-Transit', 'Reorder Qty on Sold Stock', 'Sold Stock','SAP Quoted Qty', 'Expected Date',
 ]
 # Keys of the columns after Item Code / Description, in display order
 ITEM_SUMMARY_VALUE_KEYS = [

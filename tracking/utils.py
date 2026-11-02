@@ -77,3 +77,16 @@ def fetch_sap_quoted_qty_map():
 
     cache.set(_SAP_QUOTED_CACHE_KEY, result, 300)
     return result
+
+
+def calc_reorder_qty(sold_qty, percent=30):
+    """Reorder Qty on Sold Stock: `percent`% of the sold quantity, rounded up."""
+    import math
+    try:
+        sold = float(sold_qty or 0)
+    except (TypeError, ValueError):
+        return 0
+    if sold <= 0:
+        return 0
+    # Integer maths avoids float error (e.g. 10 * 30 / 100 staying exact)
+    return int(math.ceil(round(sold * percent, 6) / 100))

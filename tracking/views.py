@@ -17,7 +17,7 @@ from django.views.decorators.http import require_GET
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from collections import defaultdict
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, calc_reorder_qty
 from django.core.management import call_command
 from io import StringIO
 # from decimal import Decimal
@@ -706,7 +706,7 @@ def consolidated_view(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': item.reorder_qty or 0,
+                'reorder_qty': calc_reorder_qty(item.total_qty),
                 'is_fully_received': True,  # Will be set to False if any order is not fully received
                 'orders': [],
             }
@@ -931,7 +931,7 @@ def build_item_summary_rows(firm_name, search='', items=None):
             'expected_date': t['expected_date'],
             'pending_at_factory': t['pending_at_factory'],
             'in_transit': t['in_transit'],
-            'reorder_qty': item.reorder_qty or 0,
+            'reorder_qty': calc_reorder_qty(item.total_qty),
             'sold_stock': item.total_qty or 0,
         })
     return rows
