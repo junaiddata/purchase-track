@@ -1223,7 +1223,7 @@ def export_consolidated_pdf(request):
         headers: list of (text, style) tuples
         date_col_start/end: column range for date columns (for special formatting)
         """
-        header_row = [Paragraph(_esc(h[0]), h[1]) for h in headers]
+        header_row = [Paragraph(_esc(h[0]).replace('&lt;br/&gt;', '<br/>'), h[1]) for h in headers]
         all_rows = [header_row] + data_rows
 
         tbl = Table(all_rows, colWidths=col_widths, repeatRows=1)
