@@ -34,8 +34,9 @@ class Command(BaseCommand):
             return
 
         # 3. Fetch sold quantity data from API
-        sold_url = "https://do.junaidworld.com/api/items/unique-qty"
+        sold_url = "https://salesorder.junaidworld.com/api/item-analysis-totals/"
         sold_data_dict = {}
+        sold_ok = False  # True only if the sold API returned usable data
         try:
             self.stdout.write(f"Fetching sold quantity data from {sold_url}...")
             sold_response = requests.get(sold_url, timeout=30)
@@ -48,12 +49,14 @@ class Command(BaseCommand):
                     item_code = str(item.get("item_code", "")).strip()
                     if item_code and item_code != "-NULL-":
                         total_qty = safe_float(item.get("total_qty", 0))
-                        sold_data_dict[item_code] = int(total_qty)
+                        # total_qty = net sold (2025 + 2026, invoices minus credit memos); keep whole units
+                        sold_data_dict[item_code] = int(round(total_qty))
+                sold_ok = True
                 self.stdout.write(f"Loaded {len(sold_data_dict)} sold quantity records")
             else:
-                self.stdout.write(self.style.WARNING("Sold quantity API returned unexpected format"))
+                self.stdout.write(self.style.WARNING("Sold quantity API returned unexpected format (existing sold quantities will be kept)"))
         except Exception as e:
-            self.stdout.write(self.style.WARNING(f"Failed to fetch sold quantity data: {e}. Continuing with stock data only..."))
+            self.stdout.write(self.style.WARNING(f"Failed to fetch sold quantity data: {e}. Continuing with stock data only (existing sold quantities will be kept)..."))
 
         # Use a dict to deduplicate by item_code in case API returns duplicates
         items_dict = {}
@@ -90,6 +93,15 @@ class Command(BaseCommand):
 
         new_items = list(items_dict.values())
 
+        # Only overwrite sold quantity when the sold API actually answered; otherwise
+        # keep the values already saved instead of resetting every item to 0.
+        update_fields = [
+            'item_description', 'item_upvc', 'item_cost',
+            'item_firm', 'item_price', 'item_stock', 'uom'
+        ]
+        if sold_ok:
+            update_fields.append('total_qty')
+
         if new_items:
             # Efficient Upsert (PostgreSQL only)
             self.stdout.write(f"Syncing {len(new_items)} unique items (Updates and New)...")
@@ -97,10 +109,7 @@ class Command(BaseCommand):
                 new_items,
                 update_conflicts=True,
                 unique_fields=['item_code'],
-                update_fields=[
-                    'item_description', 'item_upvc', 'item_cost', 
-                    'item_firm', 'item_price', 'item_stock', 'total_qty', 'uom'
-                ]
+                update_fields=update_fields
             )
 
         cache.clear()
