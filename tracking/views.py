@@ -17,7 +17,7 @@ from django.views.decorators.http import require_GET
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from collections import defaultdict
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, calc_reorder_qty
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, calc_reorder_qty, effective_reorder_qty
 from django.core.management import call_command
 from io import StringIO
 # from decimal import Decimal
@@ -706,7 +706,9 @@ def consolidated_view(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': calc_reorder_qty(item.total_qty),
+                'reorder_qty': effective_reorder_qty(item),
+                'reorder_calc': calc_reorder_qty(item.total_qty),
+                'reorder_overridden': item.reorder_override is not None,
                 'is_fully_received': True,  # Will be set to False if any order is not fully received
                 'orders': [],
             }
@@ -777,6 +779,8 @@ def consolidated_view(request):
             'stock': data['stock'],
             'sold_stock': data['sold_stock'],
             'reorder_qty': data['reorder_qty'],
+            'reorder_calc': data['reorder_calc'],
+            'reorder_overridden': data['reorder_overridden'],
             'sap_quoted_qty': sap_quoted_map.get(str(item_code).strip(), 0),
             'date_quantities': date_qty_list,  # List matching sorted_dates order
             'is_fully_received': data['is_fully_received'],  # True if all orders for this item are received
@@ -931,7 +935,7 @@ def build_item_summary_rows(firm_name, search='', items=None):
             'expected_date': t['expected_date'],
             'pending_at_factory': t['pending_at_factory'],
             'in_transit': t['in_transit'],
-            'reorder_qty': calc_reorder_qty(item.total_qty),
+            'reorder_qty': effective_reorder_qty(item),
             'sold_stock': item.total_qty or 0,
         })
     return rows
@@ -1001,27 +1005,60 @@ def item_summary(request):
 @login_required
 @admin_required
 def update_reorder_qty(request):
-    """AJAX endpoint to update reorder quantity for an item"""
+    """
+    Admin-only AJAX endpoint: set or clear the manual "Reorder Qty on Sold Stock" for one item.
+    Body: {"item_id": <int>, "reorder_qty": <int >= 0> | "" | null}
+    A blank / null value clears the override so the calculated value (30% of sold qty) is used again.
+    """
+    import logging
     if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Only POST allowed'})
-    
+        return JsonResponse({'success': False, 'error': 'Only POST allowed'}, status=405)
+
     try:
-        data = json.loads(request.body)
-        item_id = data.get('item_id')
-        reorder_qty = data.get('reorder_qty', 0)
-        
-        if not item_id:
-            return JsonResponse({'success': False, 'error': 'Item ID required'})
-        
-        item = ItemMaster.objects.get(id=item_id)
-        item.reorder_qty = int(reorder_qty) if reorder_qty else 0
-        item.save(update_fields=['reorder_qty'])
-        
-        return JsonResponse({'success': True, 'reorder_qty': item.reorder_qty})
+        data = json.loads(request.body or b'{}')
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+    if not isinstance(data, dict):
+        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+    try:
+        item_id = int(data.get('item_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Valid item ID required'}, status=400)
+
+    # Validate the quantity: blank -> clear override; otherwise a whole number 0..9,999,999
+    raw = data.get('reorder_qty')
+    if raw is None or (isinstance(raw, str) and raw.strip() == ''):
+        new_value = None
+    else:
+        if isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer()):
+            return JsonResponse({'success': False, 'error': 'Enter a whole number'}, status=400)
+        try:
+            new_value = int(str(raw).strip())
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Enter a whole number'}, status=400)
+        if new_value < 0 or new_value > 9_999_999:
+            return JsonResponse({'success': False, 'error': 'Enter a number from 0 to 9,999,999'}, status=400)
+
+    try:
+        item = ItemMaster.objects.only('id', 'item_code', 'total_qty', 'reorder_override').get(id=item_id)
     except ItemMaster.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Item not found'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': 'Item not found'}, status=404)
+
+    old_value = item.reorder_override
+    item.reorder_override = new_value
+    item.save(update_fields=['reorder_override'])
+    logging.getLogger(__name__).info(
+        'Reorder override changed by %s for item %s: %s -> %s',
+        request.user.get_username(), item.item_code, old_value, new_value,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'reorder_qty': effective_reorder_qty(item),
+        'reorder_calc': calc_reorder_qty(item.total_qty),
+        'overridden': new_value is not None,
+    })
 
 @login_required
 @admin_required

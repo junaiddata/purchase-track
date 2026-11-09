@@ -90,3 +90,12 @@ def calc_reorder_qty(sold_qty, percent=30):
         return 0
     # Integer maths avoids float error (e.g. 10 * 30 / 100 staying exact)
     return int(math.ceil(round(sold * percent, 6) / 100))
+
+
+def effective_reorder_qty(item):
+    """Reorder Qty on Sold Stock for an ItemMaster: the admin override if one is set
+    (including an explicit 0), otherwise the calculated value."""
+    override = getattr(item, 'reorder_override', None)
+    if override is not None:
+        return override
+    return calc_reorder_qty(item.total_qty)

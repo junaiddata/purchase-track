@@ -26,6 +26,11 @@ class ItemMaster(models.Model):
     item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     # Reorder quantity - for placing next order reference
     reorder_qty = models.IntegerField(default=0, blank=True, null=True, help_text="Quantity to order next")
+    # Admin override for "Reorder Qty on Sold Stock". NULL = use the calculated value (30% of sold qty).
+    reorder_override = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Manual 'Reorder Qty on Sold Stock' set by an admin. Empty = calculated automatically.",
+    )
 
     def __str__(self):
         return f"{self.item_code} - {self.item_description[:30]}"

@@ -10,7 +10,7 @@ from django.db.models import Sum
 
 from .models import Release, QuotationItem, ItemMaster
 from .decorators import admin_required, sales_required
-from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, calc_reorder_qty
+from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, effective_reorder_qty
 
 
 def parse_consolidated_search_tokens(raw):
@@ -859,7 +859,7 @@ def export_consolidated_excel(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': calc_reorder_qty(item.total_qty),
+                'reorder_qty': effective_reorder_qty(item),
                 'is_fully_received': True,
             }
 
@@ -1314,7 +1314,7 @@ def export_consolidated_pdf(request):
                 'total_qty': 0,
                 'stock': item.item_stock or 0,
                 'sold_stock': item.total_qty or 0 if is_admin else None,
-                'reorder_qty': calc_reorder_qty(item.total_qty),
+                'reorder_qty': effective_reorder_qty(item),
                 'is_fully_received': True,
             }
 

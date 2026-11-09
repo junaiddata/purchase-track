@@ -218,9 +218,22 @@
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-sky-50 w-[70px]">
                             <span class="text-[9px] font-semibold text-slate-700">{{ row.sap_quoted_qty|floatformat:"-2" }}</span>
                         </td>
-                        <!-- Reorder Qty on Sold Stock (calculated: 30% of sold stock, read-only) -->
+                        <!-- Reorder Qty on Sold Stock: calculated (30% of sold stock) unless an admin set a manual value.
+                             Only admins get the editable input; everyone else sees plain text. Server enforces admin too. -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-purple-50 w-[70px]">
+                            {% if is_admin %}
+                            <input type="number"
+                                   class="reorder-input w-14 px-1 py-0.5 text-[9px] text-center border border-purple-200 rounded focus:ring-1 focus:ring-purple-400 focus:border-purple-400 bg-white{% if row.reorder_overridden %} overridden{% endif %}"
+                                   data-item-id="{{ row.item_id }}"
+                                   data-calc="{{ row.reorder_calc }}"
+                                   data-saved="{{ row.reorder_qty|default:0 }}"
+                                   value="{{ row.reorder_qty|default:0 }}"
+                                   min="0" max="9999999" step="1" inputmode="numeric"
+                                   title="{% if row.reorder_overridden %}Manually set (calculated: {{ row.reorder_calc }}). Clear the box to go back to the calculated value.{% else %}Calculated: 30% of sold stock. Type a number to override.{% endif %}"
+                                   onclick="event.stopPropagation()">
+                            {% else %}
                             <span class="text-[9px] font-semibold text-purple-700">{{ row.reorder_qty|default:0 }}</span>
+                            {% endif %}
                         </td>
                     </tr>
                     <!-- Drill-down detail row: order/release breakdown for this item -->
@@ -361,6 +374,12 @@
     .reorder-input.error {
         background-color: #FEE2E2;
     }
+    /* Manually overridden value (differs from the automatic calculation) */
+    .reorder-input.overridden {
+        border-color: #7E22CE;
+        background-color: #F3E8FF;
+        font-weight: 700;
+    }
 
     /* Drill-down detail row */
     .detail-row.hidden {
@@ -458,51 +477,78 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Auto-save reorder quantity
-    let saveTimeout;
+    // Admin-only: edit "Reorder Qty on Sold Stock". Saves when the box loses focus / Enter is pressed
+    // (not on every keystroke). Clearing the box reverts the item to the calculated value.
     const reorderInputs = document.querySelectorAll('.reorder-input');
-    
+
     reorderInputs.forEach(input => {
-        input.addEventListener('input', function() {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.blur();
+            } else if (e.key === 'Escape') {
+                this.value = this.dataset.saved;   // discard the edit
+                this.blur();
+            }
+        });
+
+        input.addEventListener('change', function() {
             const inputEl = this;
-            const itemId = inputEl.dataset.itemId;
-            const value = inputEl.value;
-            
-            // Visual feedback - saving
+            const value = inputEl.value.trim();
+
+            // Blank = go back to calculated; otherwise it must be a whole number >= 0
+            if (value !== '' && !/^\d{1,7}$/.test(value)) {
+                inputEl.value = inputEl.dataset.saved;
+                inputEl.classList.add('error');
+                setTimeout(() => inputEl.classList.remove('error'), 1500);
+                alert('Please enter a whole number (0 or more), or clear the box to use the calculated value.');
+                return;
+            }
+            if (value !== '' && value === inputEl.dataset.saved) return;   // nothing changed
+
             inputEl.classList.remove('saved', 'error');
             inputEl.classList.add('saving');
-            
-            // Debounce save
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                fetch('{% url "update_reorder_qty" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({
-                        item_id: itemId,
-                        reorder_qty: value || 0
-                    })
+            inputEl.disabled = true;
+
+            fetch('{% url "update_reorder_qty" %}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    item_id: inputEl.dataset.itemId,
+                    reorder_qty: value === '' ? null : parseInt(value, 10)
                 })
-                .then(response => response.json())
-                .then(data => {
-                    inputEl.classList.remove('saving');
-                    if (data.success) {
-                        inputEl.classList.add('saved');
-                        setTimeout(() => inputEl.classList.remove('saved'), 1500);
-                    } else {
-                        inputEl.classList.add('error');
-                        console.error('Save failed:', data.error);
-                    }
-                })
-                .catch(err => {
-                    inputEl.classList.remove('saving');
+            })
+            .then(response => response.json())   // a login redirect returns HTML -> goes to catch
+            .then(data => {
+                inputEl.classList.remove('saving');
+                if (data.success) {
+                    inputEl.value = data.reorder_qty;
+                    inputEl.dataset.saved = String(data.reorder_qty);
+                    inputEl.dataset.calc = String(data.reorder_calc);
+                    inputEl.classList.toggle('overridden', !!data.overridden);
+                    inputEl.title = data.overridden
+                        ? 'Manually set (calculated: ' + data.reorder_calc + '). Clear the box to go back to the calculated value.'
+                        : 'Calculated: 30% of sold stock. Type a number to override.';
+                    inputEl.classList.add('saved');
+                    setTimeout(() => inputEl.classList.remove('saved'), 1500);
+                } else {
+                    inputEl.value = inputEl.dataset.saved;
                     inputEl.classList.add('error');
-                    console.error('Save error:', err);
-                });
-            }, 500); // 500ms debounce
+                    alert('Could not save: ' + (data.error || 'unknown error'));
+                }
+            })
+            .catch(err => {
+                inputEl.classList.remove('saving');
+                inputEl.value = inputEl.dataset.saved;
+                inputEl.classList.add('error');
+                console.error('Save error:', err);
+                alert('Could not save. Your session may have expired - please refresh and log in again.');
+            })
+            .finally(() => { inputEl.disabled = false; });
         });
     });
     
