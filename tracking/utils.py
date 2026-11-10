@@ -38,19 +38,25 @@ def fetch_local_open_qty_map():
 
 SAP_QUOTED_YEAR = 2026
 SAP_QUOTED_MONTHS = (7, 8, 9)  # Jul, Aug, Sep
-_SAP_QUOTED_CACHE_KEY = 'sap_quoted_qty_map_v1'
 
 
-def fetch_sap_quoted_qty_map():
-    """Fetch item_code -> SAP quoted qty summed over Jul-Sep 2026. Read-only; returns {} on failure."""
+def fetch_sap_quoted_qty_map(company=None):
+    """Fetch item_code -> SAP quoted qty summed over Jul-Sep 2026. Read-only; returns {} on failure.
+
+    Each company has its own endpoint, API key and cache entry (see companies.py); default is Junaid.
+    """
+    import logging
     from django.core.cache import cache
+    from .companies import JUNAID
 
-    url = (getattr(settings, 'QUOTATION_TOTALS_API_URL', '') or '').strip()
-    key = (getattr(settings, 'QUOTATION_API_KEY', '') or '').strip()
+    company = company or JUNAID
+    url = (getattr(settings, company.sap_quoted_url_setting, '') or '').strip()
+    key = (getattr(settings, company.sap_quoted_key_setting, '') or '').strip()
     if not url or not key:
         return {}
 
-    cached = cache.get(_SAP_QUOTED_CACHE_KEY)
+    cache_key = company.sap_quoted_cache_key
+    cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
@@ -64,9 +70,11 @@ def fetch_sap_quoted_qty_map():
                 timeout=15,
             )
             if r.status_code != 200:
+                logging.getLogger(__name__).warning('SAP quoted qty API (%s) returned HTTP %s', company.name, r.status_code)
                 return {}
             data = r.json()
             if not isinstance(data, dict) or not data.get('success'):
+                logging.getLogger(__name__).warning('SAP quoted qty API (%s) returned an unexpected response', company.name)
                 return {}
             for i in data.get('results', []):
                 code = str(i.get('item_code') or '').strip()
@@ -75,7 +83,7 @@ def fetch_sap_quoted_qty_map():
     except Exception:
         return {}
 
-    cache.set(_SAP_QUOTED_CACHE_KEY, result, 300)
+    cache.set(cache_key, result, 300)
     return result
 
 

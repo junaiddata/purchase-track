@@ -34,8 +34,7 @@
                                 clip-rule="evenodd"></path>
                         </svg>
                         <a href="{% url 'quotation_detail' quotation.pk %}"
-                            class="ml-2 text-sm font-medium text-slate-500 hover:text-slate-700">{{
-                            quotation.reference_number }}</a>
+                            class="ml-2 text-sm font-medium text-slate-500 hover:text-slate-700">{{ quotation.reference_number }}</a>
                     </div>
                 </li>
                 <li>
@@ -638,7 +637,7 @@
             
             // Fetch items from all selected firms
             const fetchPromises = firms.map(firmName => 
-                fetch(`/api/items-by-firm/?firm=${encodeURIComponent(firmName)}`)
+                fetch(`{% url 'get_items_by_firm' %}?firm=${encodeURIComponent(firmName)}`)
                     .then(response => response.json())
                     .then(data => data.items || [])
             );

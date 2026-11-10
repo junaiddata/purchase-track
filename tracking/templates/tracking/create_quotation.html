@@ -694,7 +694,7 @@
             
             // Fetch items from all selected firms
             const fetchPromises = firms.map(firmName => 
-                fetch(`/api/items-by-firm/?firm=${encodeURIComponent(firmName)}`)
+                fetch(`{% url 'get_items_by_firm' %}?firm=${encodeURIComponent(firmName)}`)
                     .then(response => response.json())
                     .then(data => data.items || [])
             );
@@ -1050,7 +1050,7 @@
                 formData.append('excel_file', file);
 
                 // Send AJAX request
-                fetch('/api/upload-quotation-items/', {
+                fetch('{% url 'upload_quotation_items_excel' %}', {
                     method: 'POST',
                     body: formData,
                     headers: {

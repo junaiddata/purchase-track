@@ -106,13 +106,13 @@
                         </th>
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[55px]">
                             <div class="leading-tight">Total<br>Qty Ordered</div>
-                        </th>
+                        </th>{% if company.show_local_columns %}
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-teal-50 w-[55px]">
                             <div class="leading-tight">Local<br>Open Qty</div>
                         </th>
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-teal-100 w-[60px]">
                             <div class="leading-tight">Import +<br>Local</div>
-                        </th>
+                        </th>{% endif %}
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[50px]">
                             Stock
                         </th>
@@ -120,11 +120,11 @@
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100 w-[60px]">
                             <div class="leading-tight">Sold<br>Stock</div>
                         </th>
-                        {% endif %}
+                        {% endif %}{% if company.show_sap_quoted %}
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-sky-50 w-[70px]">
                             <div class="leading-tight">SAP Quoted<br>Qty</div>
                             <div class="text-[7px] font-medium text-slate-400 normal-case">Jul-Sep 2026</div>
-                        </th>
+                        </th>{% endif %}
                         <th scope="col" class="px-1.5 py-1.5 text-center text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-purple-50 w-[70px]">
                             <div class="leading-tight">Reorder Qty<br>on Sold Stock</div>
                         </th>
@@ -189,7 +189,7 @@
                                 {{ row.total_qty }}
                             </span>
                             {% endif %}
-                        </td>
+                        </td>{% if company.show_local_columns %}
                         <!-- Local Open Qty -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-teal-50 w-[55px]">
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold {% if row.local_open_qty > 0 %}bg-teal-100 text-teal-700{% else %}text-slate-400{% endif %}">
@@ -201,7 +201,7 @@
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-teal-200 text-teal-800">
                                 {{ row.import_plus_local }}
                             </span>
-                        </td>
+                        </td>{% endif %}
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-slate-100 w-[50px]">
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold {% if row.stock > 0 %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                                 {{ row.stock|default:0|floatformat:0 }}
@@ -213,11 +213,11 @@
                                 {{ row.sold_stock|default:0|floatformat:0 }}
                             </span>
                         </td>
-                        {% endif %}
+                        {% endif %}{% if company.show_sap_quoted %}
                         <!-- SAP Quoted Qty (read-only, Jul-Sep 2026) -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-sky-50 w-[70px]">
                             <span class="text-[9px] font-semibold text-slate-700">{{ row.sap_quoted_qty|floatformat:"-2" }}</span>
-                        </td>
+                        </td>{% endif %}
                         <!-- Reorder Qty on Sold Stock: calculated (30% of sold stock) unless an admin set a manual value.
                              Only admins get the editable input; everyone else sees plain text. Server enforces admin too. -->
                         <td class="px-1.5 py-1.5 whitespace-nowrap text-center bg-purple-50 w-[70px]">
@@ -238,7 +238,7 @@
                     </tr>
                     <!-- Drill-down detail row: order/release breakdown for this item -->
                     <tr id="detail-{{ row.item_id }}" class="detail-row hidden">
-                        <td colspan="{% if is_admin %}{{ dates|length|add:11 }}{% else %}{{ dates|length|add:10 }}{% endif %}" class="bg-slate-50 px-3 py-3 border-t border-b border-slate-200">
+                        <td colspan="{% if is_admin %}{% if company.show_local_columns %}{{ dates|length|add:11 }}{% elif company.show_sap_quoted %}{{ dates|length|add:9 }}{% else %}{{ dates|length|add:8 }}{% endif %}{% else %}{% if company.show_local_columns %}{{ dates|length|add:10 }}{% elif company.show_sap_quoted %}{{ dates|length|add:8 }}{% else %}{{ dates|length|add:7 }}{% endif %}{% endif %}" class="bg-slate-50 px-3 py-3 border-t border-b border-slate-200">
                             {% if row.orders %}
                             <table class="min-w-full text-[10px] border border-slate-200 rounded overflow-hidden bg-white">
                                 <thead class="bg-slate-100">

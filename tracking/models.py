@@ -2,18 +2,29 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum
 
+# ---------------------------------------------------------------------------
+# Multi-company layout
+#
+# Junaid's tables are the original ones (ItemMaster, Quotation, QuotationItem, Release, Shipment).
+# Alabama has its OWN set of tables with exactly the same structure (Alabama* models below), so the
+# two companies' items, quotations, releases and shipments can never mix, even when the same
+# item_code exists in both.  Each structure is defined once in an abstract base class.
+#
+# Shared by both companies (single tables): Supplier (brand logos), Manufacturer, User/UserProfile.
+# ---------------------------------------------------------------------------
+
 class Supplier(models.Model):
     """Supplier/Firm with optional logo for branding."""
     name = models.CharField(max_length=100, unique=True, help_text="Supplier/Firm name (must match item_firm)")
     logo = models.ImageField(upload_to='supplier_logos/', blank=True, null=True, help_text="Supplier logo (optional)")
-    
+
     class Meta:
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
 
-class ItemMaster(models.Model):
+class ItemMasterBase(models.Model):
     item_code = models.CharField(max_length=50, unique=True)
     item_description = models.TextField()
     item_firm = models.CharField(max_length=100, help_text="Manufacturer/Brand (e.g. PEGLER)", db_index=True)
@@ -32,8 +43,33 @@ class ItemMaster(models.Model):
         help_text="Manual 'Reorder Qty on Sold Stock' set by an admin. Empty = calculated automatically.",
     )
 
+    class Meta:
+        abstract = True
+
     def __str__(self):
         return f"{self.item_code} - {self.item_description[:30]}"
+
+class ItemMaster(ItemMasterBase):
+    """Junaid items (original table)."""
+
+class AlabamaItemMaster(ItemMasterBase):
+    """Alabama items (imported daily from the Alabama stock API, only for the brands in AlabamaBrand)."""
+    class Meta:
+        verbose_name = "Alabama item"
+        verbose_name_plural = "Alabama items"
+
+class AlabamaBrand(models.Model):
+    """Brands (ManufacturerName in the Alabama stock API) that are imported for Alabama.
+    Add a row here and the next Alabama import brings in that brand's items."""
+    name = models.CharField(max_length=100, unique=True, help_text="Exact ManufacturerName from the Alabama stock API")
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Alabama brand"
+        verbose_name_plural = "Alabama brands"
+
+    def __str__(self):
+        return self.name
 
 class IgnoreList(models.Model):
     item_code = models.CharField(max_length=50, unique=True, help_text="Item Code to ignore during API sync")
@@ -44,39 +80,43 @@ class IgnoreList(models.Model):
 class Manufacturer(models.Model):
     """Parent company/manufacturer entity."""
     name = models.CharField(max_length=150, unique=True, help_text="Manufacturer name (e.g., Aalberts Group Ltd)")
-    
+
     class Meta:
         ordering = ['name']
-    
+
     def __str__(self):
         return self.name
 
-class Quotation(models.Model):
+class QuotationBase(models.Model):
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
         ('CONFIRMED', 'Confirmed'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
     ]
-    
+
     CURRENCY_CHOICES = [
         ('USD', 'USD'),
         ('EUR', 'EUR'),
         ('AED', 'AED'),
         ('GBP', 'GBP'),
     ]
-    
+
     reference_number = models.CharField(max_length=50, unique=True)
     supplier_name = models.TextField(help_text="Brand/Firm names (comma-separated, e.g., PEGLER, PEGLER-CHILLED)")
-    manufacturer = models.ForeignKey(Manufacturer, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    # NOTE: the `manufacturer` foreign key is declared on each concrete model (see below) because the
+    # reverse name must differ per company.
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD', help_text="Currency for this quotation")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 
+    class Meta:
+        abstract = True
+
     def __str__(self):
         return self.reference_number
-    
+
     @property
     def supplier_name_display(self):
         """Format supplier name for display: show first brand + count if multiple"""
@@ -86,19 +126,19 @@ class Quotation(models.Model):
         if len(brands) > 1:
             return f"{brands[0]} +{len(brands) - 1} more"
         return brands[0] if brands else ""
-    
+
     @property
     def total_amount(self):
         """Calculate total amount of quotation (sum of all line items: quantity * rate)"""
         total = sum(item.quantity_ordered * item.rate for item in self.items.all())
         return total
-    
+
     def is_fully_received(self):
         """Check if all items in the quotation are fully received"""
         if not self.items.exists():
             return False
         return all(item.balance_quantity <= 0 for item in self.items.all())
-    
+
     def check_and_update_status(self):
         """Automatically update status to COMPLETED if all items are fully received"""
         # Only auto-complete if not already COMPLETED or CANCELLED, and all items are received
@@ -108,12 +148,25 @@ class Quotation(models.Model):
             return True
         return False
 
-class QuotationItem(models.Model):
-    quotation = models.ForeignKey(Quotation, related_name='items', on_delete=models.CASCADE)
-    item = models.ForeignKey(ItemMaster, on_delete=models.CASCADE)
+class Quotation(QuotationBase):
+    """Junaid quotations (original table)."""
+    manufacturer = models.ForeignKey(Manufacturer, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+
+class AlabamaQuotation(QuotationBase):
+    # Same shared Manufacturer table as Junaid; only the reverse name differs.
+    manufacturer = models.ForeignKey(Manufacturer, on_delete=models.SET_NULL, null=True, blank=True, related_name='alabama_quotations')
+
+    class Meta:
+        verbose_name = "Alabama quotation"
+        verbose_name_plural = "Alabama quotations"
+
+class QuotationItemBase(models.Model):
     quantity_ordered = models.IntegerField()
     rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     expected_delivery_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
 
     def __str__(self):
         return f"{self.item.item_code} in {self.quotation.reference_number}"
@@ -133,39 +186,81 @@ class QuotationItem(models.Model):
     @property
     def balance_to_release(self):
         return self.quantity_ordered - (self.quantity_in_transit + self.quantity_received)
-    
+
     @property
     def line_total(self):
         """Calculate line total (quantity * rate)"""
         return self.quantity_ordered * self.rate
 
-class Release(models.Model):
-    quotation_item = models.ForeignKey(QuotationItem, related_name='releases', on_delete=models.CASCADE)
+class QuotationItem(QuotationItemBase):
+    quotation = models.ForeignKey(Quotation, related_name='items', on_delete=models.CASCADE)
+    item = models.ForeignKey(ItemMaster, on_delete=models.CASCADE)
+
+class AlabamaQuotationItem(QuotationItemBase):
+    quotation = models.ForeignKey(AlabamaQuotation, related_name='items', on_delete=models.CASCADE)
+    item = models.ForeignKey(AlabamaItemMaster, on_delete=models.CASCADE)
+
+    class Meta:
+        verbose_name = "Alabama quotation item"
+        verbose_name_plural = "Alabama quotation items"
+
+class ReleaseBase(models.Model):
     quantity_released = models.IntegerField()
     release_date = models.DateField()
     expected_arrival_date = models.DateField(null=True, blank=True)
     container_info = models.CharField(max_length=100, blank=True, help_text="Truck/Container No.")
     is_received = models.BooleanField(default=False)
 
+    class Meta:
+        abstract = True
+
     def __str__(self):
         return f"Release {self.quantity_released} of {self.quotation_item}"
 
-class Shipment(models.Model):
-    quotation_item = models.ForeignKey(QuotationItem, related_name='shipments', on_delete=models.CASCADE)
+class Release(ReleaseBase):
+    quotation_item = models.ForeignKey(QuotationItem, related_name='releases', on_delete=models.CASCADE)
+
+class AlabamaRelease(ReleaseBase):
+    quotation_item = models.ForeignKey(AlabamaQuotationItem, related_name='releases', on_delete=models.CASCADE)
+
+    class Meta:
+        verbose_name = "Alabama release"
+        verbose_name_plural = "Alabama releases"
+
+class ShipmentBase(models.Model):
     quantity_received = models.IntegerField()
     received_date = models.DateField()
     remarks = models.TextField(blank=True)
 
+    class Meta:
+        abstract = True
+
     def __str__(self):
         return f"Recv {self.quantity_received} for {self.quotation_item}"
+
+class Shipment(ShipmentBase):
+    quotation_item = models.ForeignKey(QuotationItem, related_name='shipments', on_delete=models.CASCADE)
+
+class AlabamaShipment(ShipmentBase):
+    quotation_item = models.ForeignKey(AlabamaQuotationItem, related_name='shipments', on_delete=models.CASCADE)
+
+    class Meta:
+        verbose_name = "Alabama shipment"
+        verbose_name_plural = "Alabama shipments"
 
 class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('ADMIN', 'Admin'),
         ('SALESMAN', 'Salesman'),
     ]
+    COMPANY_CHOICES = [
+        ('JUNAID', 'Junaid'),
+        ('ALABAMA', 'Alabama'),
+    ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='SALESMAN')
+    # Which company a non-admin user works in. Admins can open both companies, so it is ignored for them.
+    company = models.CharField(max_length=20, choices=COMPANY_CHOICES, default='JUNAID')
 
     def __str__(self):
         return f"{self.user.username} - {self.role}"
@@ -176,38 +271,38 @@ class LocalPurchaseItem(models.Model):
     item_code = models.CharField(max_length=50)
     upc_code = models.CharField(max_length=50, blank=True, null=True)
     description = models.TextField(blank=True)
-    
+
     # Stock Columns
     current_stock_ras = models.IntegerField(default=0)
     current_stock_dip = models.IntegerField(default=0)
     sold_qty_2024 = models.IntegerField(default=0)
-    
+
     # Channels
     contg = models.IntegerField(default=0)
     trdg = models.IntegerField(default=0)
     stores = models.IntegerField(default=0)
-    
+
     # Analysis 2025
     total_sold_qty_2025 = models.IntegerField(default=0)
     avg_15day_sales = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     stock_sufficiency_months = models.DecimalField(max_digits=10, decimal_places=1, default=0.0)
-    
+
     # Requirements
     lpo_given = models.IntegerField(default=0)
     open_so_qty = models.IntegerField(default=0)
     stock_reqt_calcn = models.IntegerField(default=0) # Can be negative
     stock_requirement = models.IntegerField(default=0)
-    
+
     # Valuation
     value = models.DecimalField(max_digits=12, decimal_places=2, default=0.0)
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.0)
-    
+
     # Extras
     ho_per_lpo_qty = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     stock_reqt_ras_stores = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
-    
+
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['brand', 'item_code']
         verbose_name = "Local Purchase Item"

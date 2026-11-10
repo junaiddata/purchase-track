@@ -8,8 +8,9 @@ from django.db import transaction, models
 from django.db.models import Sum, Min
 from django.db.models.functions import Coalesce
 from .models import ItemMaster, Quotation, QuotationItem, Release, Shipment, Manufacturer, LocalPurchaseItem
-from .forms import UploadItemForm, QuotationForm, QuotationItemFormSet, ShipmentForm, ReleaseForm, ReleaseEditForm, ManufacturerForm, UploadManufacturerForm
-from django.http import JsonResponse
+from .forms import UploadItemForm, ManufacturerForm, UploadManufacturerForm, forms_for
+from .companies import get_company, JUNAID
+from django.http import JsonResponse, Http404
 import json
 import re
 from django.views.decorators.cache import never_cache
@@ -32,14 +33,15 @@ def dashboard(request):
     For now, nice landing page.
     """
     # Fetch recent quotations
-    recent_quotations = Quotation.objects.all().order_by('-created_at')[:5]
+    C = get_company(request)
+    recent_quotations = C.Quotation.objects.all().order_by('-created_at')[:5]
     
     # Calculate stats
-    total_items = ItemMaster.objects.count()
-    pending_quotations = Quotation.objects.filter(status='DRAFT').count()
+    total_items = C.Item.objects.count()
+    pending_quotations = C.Quotation.objects.filter(status='DRAFT').count()
     
     # Incoming shipments (In Transit) - Release objects not received
-    incoming_shipments = Release.objects.filter(is_received=False).count()
+    incoming_shipments = C.Release.objects.filter(is_received=False).count()
 
     context = {
         'recent_quotations': recent_quotations,
@@ -52,7 +54,8 @@ def dashboard(request):
 @login_required
 @admin_required
 def update_quotation_status(request, pk):
-    quotation = get_object_or_404(Quotation, pk=pk)
+    C = get_company(request)
+    quotation = get_object_or_404(C.Quotation, pk=pk)
     
     if request.method == 'POST':
         # Check if it's a form submission or JSON
@@ -60,7 +63,7 @@ def update_quotation_status(request, pk):
             try:
                 data = json.loads(request.body)
                 new_status = data.get('status')
-                if new_status in dict(Quotation.STATUS_CHOICES):
+                if new_status in dict(C.Quotation.STATUS_CHOICES):
                     quotation.status = new_status
                     quotation.save()
                     return JsonResponse({'success': True})
@@ -70,7 +73,7 @@ def update_quotation_status(request, pk):
         else:
             # Standard form submission (e.g. from the list page Save button)
             new_status = request.POST.get('status')
-            if new_status in dict(Quotation.STATUS_CHOICES):
+            if new_status in dict(C.Quotation.STATUS_CHOICES):
                 quotation.status = new_status
                 quotation.save()
                 messages.success(request, f"Status for {quotation.reference_number} updated to {quotation.get_status_display()}.")
@@ -88,7 +91,8 @@ def quotation_list(request):
     status_filter = request.GET.get('status', 'all')
     search_query = request.GET.get('search', '')
     
-    quotes = Quotation.objects.all().order_by('-created_at')
+    C = get_company(request)
+    quotes = C.Quotation.objects.all().order_by('-created_at')
     
     # helper for filter
     if status_filter != 'all':
@@ -121,7 +125,9 @@ def quotation_list(request):
 @login_required
 @admin_required
 def release_item(request, pk):
-    item = get_object_or_404(QuotationItem, pk=pk)
+    C = get_company(request)
+    F = forms_for(C)
+    item = get_object_or_404(C.QuotationItem, pk=pk)
     
     # Check if there's anything available to release
     balance_to_release = item.balance_to_release
@@ -130,7 +136,7 @@ def release_item(request, pk):
         return redirect('quotation_detail', pk=item.quotation.pk)
     
     if request.method == 'POST':
-        form = ReleaseForm(request.POST, quotation_item=item)
+        form = F.ReleaseForm(request.POST, quotation_item=item)
         if form.is_valid():
             quantity_released = form.cleaned_data['quantity_released']
             
@@ -148,7 +154,7 @@ def release_item(request, pk):
     else:
         # Pre-fill with available balance (but not more than available)
         initial_quantity = min(item.balance_to_release, item.balance_to_release) if item.balance_to_release > 0 else 0
-        form = ReleaseForm(quotation_item=item, initial={'quantity_released': initial_quantity})
+        form = F.ReleaseForm(quotation_item=item, initial={'quantity_released': initial_quantity})
 
     return render(request, 'tracking/release_item.html', {
         'form': form,
@@ -160,7 +166,9 @@ def release_item(request, pk):
 @admin_required
 def receive_release(request, pk):
     # This view confirms that a Release (truck) has arrived
-    release = get_object_or_404(Release, pk=pk)
+    C = get_company(request)
+    F = forms_for(C)
+    release = get_object_or_404(C.Release, pk=pk)
     
     if request.method == 'POST':
         with transaction.atomic():
@@ -170,7 +178,7 @@ def receive_release(request, pk):
             # Auto-create a Shipment record to log this receipt officially?
             # Or just mark release as received?
             # If we want to maintain the Shipment model as the source of "Stock", we should create one.
-            Shipment.objects.create(
+            C.Shipment.objects.create(
                 quotation_item=release.quotation_item,
                 quantity_received=release.quantity_released,
                 received_date=pd.Timestamp.now().date(), # Default to today
@@ -196,7 +204,9 @@ def receive_release(request, pk):
 @admin_required
 def edit_release(request, pk):
     """Edit expected arrival date (and container info) of a release. Admin only."""
-    release = get_object_or_404(Release, pk=pk)
+    C = get_company(request)
+    F = forms_for(C)
+    release = get_object_or_404(C.Release, pk=pk)
     next_url = request.GET.get('next') or request.POST.get('next')
     fallback = redirect('quotation_detail', pk=release.quotation_item.quotation.pk)
 
@@ -205,7 +215,7 @@ def edit_release(request, pk):
         return redirect(next_url) if next_url else fallback
 
     if request.method == 'POST':
-        form = ReleaseEditForm(request.POST, instance=release)
+        form = F.ReleaseEditForm(request.POST, instance=release)
         if form.is_valid():
             form.save()
             messages.success(request, "Release date updated successfully.")
@@ -213,7 +223,7 @@ def edit_release(request, pk):
                 return redirect(next_url)
             return fallback
     else:
-        form = ReleaseEditForm(instance=release)
+        form = F.ReleaseEditForm(instance=release)
 
     return render(request, 'tracking/edit_release.html', {
         'form': form,
@@ -225,13 +235,15 @@ def edit_release(request, pk):
 @login_required
 @admin_required
 def create_quotation(request):
+    C = get_company(request)
+    F = forms_for(C)
     if request.method == 'POST':
         print("DEBUG: POST keys received:", list(request.POST.keys()))
         print("DEBUG: POST items-0-item:", request.POST.get('items-0-item'))
         print("DEBUG: POST items-0-quantity_ordered:", request.POST.get('items-0-quantity_ordered'))
         
-        form = QuotationForm(request.POST)
-        formset = QuotationItemFormSet(request.POST)
+        form = F.QuotationForm(request.POST)
+        formset = F.QuotationItemFormSet(request.POST)
         
         if form.is_valid() and formset.is_valid():
             print("DEBUG: Forms are valid")
@@ -268,8 +280,8 @@ def create_quotation(request):
                  messages.error(request, f"Item Errors: {formset.errors}")
              messages.error(request, "Please correct the errors below.")
     else:
-        form = QuotationForm()
-        formset = QuotationItemFormSet()
+        form = F.QuotationForm()
+        formset = F.QuotationItemFormSet()
         
     return render(request, 'tracking/create_quotation.html', {
         'form': form,
@@ -279,7 +291,8 @@ def create_quotation(request):
 @login_required
 @admin_required
 def quotation_detail(request, pk):
-    quotation = get_object_or_404(Quotation, pk=pk)
+    C = get_company(request)
+    quotation = get_object_or_404(C.Quotation, pk=pk)
     
     # Try to get supplier logo (use first supplier if multiple)
     supplier_logo = None
@@ -303,7 +316,9 @@ def quotation_detail(request, pk):
 @admin_required
 def edit_quotation(request, pk):
     """Edit an existing quotation and its items."""
-    quotation = get_object_or_404(Quotation, pk=pk)
+    C = get_company(request)
+    F = forms_for(C)
+    quotation = get_object_or_404(C.Quotation, pk=pk)
     
     # Prevent editing confirmed/completed quotations
     if quotation.status in ['CONFIRMED', 'COMPLETED']:
@@ -311,8 +326,8 @@ def edit_quotation(request, pk):
         return redirect('quotation_detail', pk=pk)
     
     if request.method == 'POST':
-        form = QuotationForm(request.POST, instance=quotation)
-        formset = QuotationItemFormSet(request.POST, instance=quotation)
+        form = F.QuotationForm(request.POST, instance=quotation)
+        formset = F.QuotationItemFormSet(request.POST, instance=quotation)
         
         if form.is_valid() and formset.is_valid():
             try:
@@ -326,8 +341,8 @@ def edit_quotation(request, pk):
         else:
             messages.error(request, "Please correct the errors below.")
     else:
-        form = QuotationForm(instance=quotation)
-        formset = QuotationItemFormSet(instance=quotation)
+        form = F.QuotationForm(instance=quotation)
+        formset = F.QuotationItemFormSet(instance=quotation)
     
     return render(request, 'tracking/edit_quotation.html', {
         'form': form,
@@ -339,7 +354,8 @@ def edit_quotation(request, pk):
 @admin_required
 def delete_quotation(request, pk):
     """Delete a quotation."""
-    quotation = get_object_or_404(Quotation, pk=pk)
+    C = get_company(request)
+    quotation = get_object_or_404(C.Quotation, pk=pk)
     
     # Prevent deleting confirmed/completed quotations
     if quotation.status in ['CONFIRMED', 'COMPLETED']:
@@ -359,13 +375,15 @@ def delete_quotation(request, pk):
 @login_required
 @admin_required
 def receive_item(request, pk):
-    item = get_object_or_404(QuotationItem, pk=pk)
+    C = get_company(request)
+    F = forms_for(C)
+    item = get_object_or_404(C.QuotationItem, pk=pk)
     
     # Get pending releases (In Transit) for this item to offer "Quick Receive"
     pending_releases = item.releases.filter(is_received=False)
 
     if request.method == 'POST':
-        form = ShipmentForm(request.POST)
+        form = F.ShipmentForm(request.POST)
         if form.is_valid():
             quantity_received = form.cleaned_data['quantity_received']
             available_to_receive = item.balance_to_release
@@ -393,7 +411,7 @@ def receive_item(request, pk):
 
                 return redirect('quotation_detail', pk=item.quotation.pk)
     else:
-        form = ShipmentForm()
+        form = F.ShipmentForm()
     
     return render(request, 'tracking/receive_item.html', {
         'form': form,
@@ -428,7 +446,7 @@ def upload_items(request):
                         stock = row['Stock'] if pd.notna(row['Stock']) else 0
                         uom = str(row['UOM']).strip()
                         
-                        ItemMaster.objects.update_or_create(
+                        get_company(request).Item.objects.update_or_create(
                             item_code=code,
                             defaults={
                                 'item_description': desc,
@@ -463,7 +481,8 @@ def sales_dashboard(request):
     """
     # Get firms that have active QuotationItems (either pending release or in transit)
     # We want distinct firm names.
-    firm_names = QuotationItem.objects.annotate(
+    C = get_company(request)
+    firm_names = C.QuotationItem.objects.annotate(
         total_received=Coalesce(Sum('shipments__quantity_received'), 0)
     ).filter(
         models.Q(quotation__status='CONFIRMED') &
@@ -492,7 +511,8 @@ def sales_firm_track(request):
         
     # 1. Incoming (On The Way)
     # Changed from grouping to flat list for Table view
-    in_transit_releases = Release.objects.filter(
+    C = get_company(request)
+    in_transit_releases = C.Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=False
     ).select_related(
@@ -506,7 +526,7 @@ def sales_firm_track(request):
         release.transit_amount = release.quantity_released * release.quotation_item.rate
 
     # 2. Received (History) with Pagination
-    received_queryset = Release.objects.filter(
+    received_queryset = C.Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=True
     ).select_related(
@@ -534,7 +554,7 @@ def sales_firm_track(request):
             release.actual_received_date = release.release_date
     
     # 3. Pending (At Factory)
-    all_firm_items = QuotationItem.objects.filter(
+    all_firm_items = C.QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status='CONFIRMED'
     ).select_related('item', 'quotation', 'quotation__manufacturer').order_by('expected_delivery_date')
@@ -625,7 +645,8 @@ def get_items_by_firm(request):
     if not firm:
         return JsonResponse({'items': []})
     
-    items = ItemMaster.objects.filter(item_firm=firm).values('id', 'item_code', 'item_description', 'item_upvc').order_by('item_code')
+    C = get_company(request)
+    items = C.Item.objects.filter(item_firm=firm).values('id', 'item_code', 'item_description', 'item_upvc').order_by('item_code')
     return JsonResponse({'items': list(items)})
 
 @login_required
@@ -640,12 +661,13 @@ def consolidated_view(request):
     from collections import defaultdict
     from datetime import datetime
     
+    C = get_company(request)
     firm_name = request.GET.get('firm')
     
     # If no firm selected, show firm selection page
     if not firm_name:
         # Get firms that have active QuotationItems
-        firm_names = QuotationItem.objects.filter(
+        firm_names = C.QuotationItem.objects.filter(
             quotation__status__in=['CONFIRMED', 'COMPLETED']
         ).values_list('item__item_firm', flat=True).distinct().order_by('item__item_firm')
         
@@ -661,7 +683,7 @@ def consolidated_view(request):
         return render(request, 'tracking/consolidated_firm_select.html', {'firms': firms_with_logos})
     
     # Get all quotation items for this firm that have orders (including fully received)
-    quotation_items = QuotationItem.objects.filter(
+    quotation_items = C.QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status__in=['CONFIRMED', 'COMPLETED']
     ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
@@ -757,8 +779,9 @@ def consolidated_view(request):
     sorted_dates = sorted(all_dates, key=all_dates.get)
     
     # Fetch Local Open Qty from external API
-    local_map = fetch_local_open_qty_map()
-    sap_quoted_map = fetch_sap_quoted_qty_map()
+    # Local Open Qty is a Junaid-only system; SAP Quoted Qty has a separate endpoint per company
+    local_map = fetch_local_open_qty_map() if C.show_local_columns else {}
+    sap_quoted_map = fetch_sap_quoted_qty_map(C) if C.show_sap_quoted else {}
 
     # Convert to list for template
     table_data = []
@@ -830,13 +853,13 @@ def parse_bulk_search_tokens(raw):
     return [single.lower()]
 
 
-def item_summary_items(firm_name, search=''):
+def item_summary_items(firm_name, search='', company=None):
     """
     All ItemMaster items of a brand (items synced from the stock API), ordered by code.
     Optional `search` is a bulk search: items matching ANY token (item code or description,
     case-insensitive) are returned.
     """
-    items = ItemMaster.objects.filter(item_firm=firm_name).order_by('item_code')
+    items = (company or JUNAID).Item.objects.filter(item_firm=firm_name).order_by('item_code')
     tokens = parse_bulk_search_tokens(search)
     if tokens:
         q = models.Q()
@@ -850,7 +873,7 @@ def item_summary_items(firm_name, search=''):
     return items
 
 
-def build_item_summary_rows(firm_name, search='', items=None):
+def build_item_summary_rows(firm_name, search='', items=None, company=None):
     """
     Build one row per item of a brand from ItemMaster (all items synced from the stock API):
     Stock, Ordered (total ever ordered), Pending at Factory, In-Transit, Reorder, Sold.
@@ -859,12 +882,13 @@ def build_item_summary_rows(firm_name, search='', items=None):
     items matching `search` are used.
     Shared by the Item Summary page and its Excel/PDF exports.
     """
+    company = company or JUNAID
     if items is None:
-        items = item_summary_items(firm_name, search)
-        lines_qs = QuotationItem.objects.filter(item__item_firm=firm_name)
+        items = item_summary_items(firm_name, search, company)
+        lines_qs = company.QuotationItem.objects.filter(item__item_firm=firm_name)
     else:
         items = list(items)
-        lines_qs = QuotationItem.objects.filter(item_id__in=[item.id for item in items])
+        lines_qs = company.QuotationItem.objects.filter(item_id__in=[item.id for item in items])
 
     lines = list(lines_qs.filter(
         quotation__status__in=ITEM_SUMMARY_STATUSES
@@ -874,7 +898,7 @@ def build_item_summary_rows(firm_name, search='', items=None):
 
     # Earliest expected arrival of each line's still-in-transit releases
     release_eta_map = dict(
-        Release.objects.filter(quotation_item_id__in=line_ids, is_received=False,
+        company.Release.objects.filter(quotation_item_id__in=line_ids, is_received=False,
                                expected_arrival_date__isnull=False)
         .values('quotation_item_id').annotate(eta=Min('expected_arrival_date'))
         .values_list('quotation_item_id', 'eta')
@@ -882,12 +906,12 @@ def build_item_summary_rows(firm_name, search='', items=None):
 
     # Per-line in-transit and received totals in two grouped queries (avoids per-row queries)
     transit_map = dict(
-        Release.objects.filter(quotation_item_id__in=line_ids, is_received=False)
+        company.Release.objects.filter(quotation_item_id__in=line_ids, is_received=False)
         .values('quotation_item_id').annotate(total=Sum('quantity_released'))
         .values_list('quotation_item_id', 'total')
     )
     received_map = dict(
-        Shipment.objects.filter(quotation_item_id__in=line_ids)
+        company.Shipment.objects.filter(quotation_item_id__in=line_ids)
         .values('quotation_item_id').annotate(total=Sum('quantity_received'))
         .values_list('quotation_item_id', 'total')
     )
@@ -918,7 +942,7 @@ def build_item_summary_rows(firm_name, search='', items=None):
             if t['expected_date'] is None or earliest < t['expected_date']:
                 t['expected_date'] = earliest
 
-    sap_quoted_map = fetch_sap_quoted_qty_map()
+    sap_quoted_map = fetch_sap_quoted_qty_map(company) if company.show_sap_quoted else {}
 
     rows = []
     empty_totals = new_totals()
@@ -952,11 +976,12 @@ def item_summary(request):
     from urllib.parse import urlencode
     from .models import Supplier
 
+    C = get_company(request)
     firm_name = request.GET.get('firm')
 
     # If no brand selected, show brand selection page
     if not firm_name:
-        firm_names = QuotationItem.objects.filter(
+        firm_names = C.QuotationItem.objects.filter(
             quotation__status__in=ITEM_SUMMARY_STATUSES
         ).values_list('item__item_firm', flat=True).distinct().order_by('item__item_firm')
 
@@ -973,7 +998,7 @@ def item_summary(request):
     search = request.GET.get('search', '').strip()
     only_zero_stock = request.GET.get('only_zero') == '1'
     hide_zero_stock = request.GET.get('hide_zero') == '1' and not only_zero_stock
-    summary_items = item_summary_items(firm_name, search)
+    summary_items = item_summary_items(firm_name, search, C)
     if only_zero_stock:
         summary_items = summary_items.filter(models.Q(item_stock__isnull=True) | models.Q(item_stock=0))
     elif hide_zero_stock:
@@ -995,7 +1020,7 @@ def item_summary(request):
         'search': search,
         'hide_zero_stock': hide_zero_stock,
         'only_zero_stock': only_zero_stock,
-        'rows': build_item_summary_rows(firm_name, items=page_obj.object_list),
+        'rows': build_item_summary_rows(firm_name, items=page_obj.object_list, company=C),
         'page_obj': page_obj,
         'page_range': paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1),
         'base_query': urlencode(base_params),
@@ -1040,9 +1065,10 @@ def update_reorder_qty(request):
         if new_value < 0 or new_value > 9_999_999:
             return JsonResponse({'success': False, 'error': 'Enter a number from 0 to 9,999,999'}, status=400)
 
+    C = get_company(request)
     try:
-        item = ItemMaster.objects.only('id', 'item_code', 'total_qty', 'reorder_override').get(id=item_id)
-    except ItemMaster.DoesNotExist:
+        item = C.Item.objects.only('id', 'item_code', 'total_qty', 'reorder_override').get(id=item_id)
+    except C.Item.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Item not found'}, status=404)
 
     old_value = item.reorder_override
@@ -1075,7 +1101,7 @@ def reset_reorder_qty(request):
             return JsonResponse({'success': False, 'error': 'Firm name required'})
         
         # Reset all items for this firm
-        updated_count = ItemMaster.objects.filter(item_firm=firm_name).update(reorder_qty=0)
+        updated_count = get_company(request).Item.objects.filter(item_firm=firm_name).update(reorder_qty=0)
         
         return JsonResponse({
             'success': True, 
@@ -1089,6 +1115,7 @@ def reset_reorder_qty(request):
 @admin_required
 def upload_quotation_items_excel(request):
     """AJAX endpoint to upload Excel file with quotation items (itemcode, qty, rate)"""
+    C = get_company(request)
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Only POST method allowed'})
     
@@ -1181,13 +1208,13 @@ def upload_quotation_items_excel(request):
             
             # Try to find item in ItemMaster (case-insensitive match)
             try:
-                item_master = ItemMaster.objects.get(item_code__iexact=itemcode)
-            except ItemMaster.DoesNotExist:
+                item_master = C.Item.objects.get(item_code__iexact=itemcode)
+            except C.Item.DoesNotExist:
                 warnings.append(f"Row {index + 2}: Itemcode '{itemcode}' not found in database")
                 continue
-            except ItemMaster.MultipleObjectsReturned:
+            except C.Item.MultipleObjectsReturned:
                 # If multiple found, take first one
-                item_master = ItemMaster.objects.filter(item_code__iexact=itemcode).first()
+                item_master = C.Item.objects.filter(item_code__iexact=itemcode).first()
             
             # Get quantity (default to 0 if invalid)
             try:
@@ -1334,7 +1361,7 @@ def manufacturer_upload(request):
 def run_stock_import(request):
     out = StringIO()
     try:
-        call_command('import_stock_api', stdout=out)
+        call_command(get_company(request).import_command, stdout=out)
         output = out.getvalue()
         messages.success(request, output)
     except Exception as e:
@@ -1347,6 +1374,8 @@ def run_stock_import(request):
 @admin_required
 def local_purchase_dashboard(request):
     """Dashboard to select a brand/sheet."""
+    if not get_company(request).local_purchase_enabled:
+        raise Http404
     brands = LocalPurchaseItem.objects.values_list('brand', flat=True).distinct().order_by('brand')
     return render(request, 'tracking/local_purchase_dashboard.html', {'brands': brands})
 
@@ -1360,6 +1389,8 @@ from django.http import JsonResponse
 @admin_required
 def local_purchase_list(request):
     """Table view for a selected brand with AJAX search, sort, and pagination."""
+    if not get_company(request).local_purchase_enabled:
+        raise Http404
     brand = request.GET.get('brand')
     if not brand:
         return redirect('local_purchase_dashboard')
@@ -1450,6 +1481,8 @@ def local_purchase_list(request):
 @admin_required
 def local_purchase_upload(request):
     """View to upload multi-sheet Excel file."""
+    if not get_company(request).local_purchase_enabled:
+        raise Http404
     if request.method == 'POST' and request.FILES.get('excel_file'):
         import os
         from django.core.files.storage import FileSystemStorage
@@ -1596,7 +1629,10 @@ def api_item_totals(request):
     """
     Public API (no auth): returns list of { itemcode, totalqty_ordered }.
     totalqty_ordered = in transit + pending at factory per item.
+    Junaid only (reads Junaid's tables); not available under /alabama/.
     """
+    if not get_company(request).public_apis_enabled:
+        raise Http404
     # In transit: sum of quantity_released for releases not received, per item
     in_transit = (
         Release.objects.filter(is_received=False)
@@ -1650,6 +1686,10 @@ def api_consolidated_qty(request):
     import hmac
     from django.conf import settings
 
+    # Junaid only (reads Junaid's tables); not available under /alabama/.
+    if not get_company(request).public_apis_enabled:
+        raise Http404
+
     expected_key = getattr(settings, 'CONSOLIDATED_API_KEY', '')
     if not expected_key:
         return JsonResponse({'error': 'API key not configured'}, status=503)
@@ -1695,7 +1735,7 @@ PRICE_BASIS_LABELS = {
 @login_required
 @admin_required
 def price_comparison(request):
-    firms = (ItemMaster.objects.exclude(item_firm='')
+    firms = (get_company(request).Item.objects.exclude(item_firm='')
              .values_list('item_firm', flat=True).distinct().order_by('item_firm'))
     return render(request, 'tracking/price_comparison.html', {'firms': list(firms)})
 
@@ -1708,6 +1748,7 @@ def api_compare_items(request):
     GET ?ids=12,45,78&basis=cost&qty_per_unit=1,10,1
     Returns items ranked cheapest first with difference vs cheapest.
     """
+    C = get_company(request)
     basis = request.GET.get('basis', 'cost')
     if basis not in PRICE_BASIS_LABELS:
         basis = 'cost'
@@ -1727,12 +1768,12 @@ def api_compare_items(request):
         except (InvalidOperation, ValueError):
             pack_map[item_id] = Decimal('1')
 
-    items = {i.id: i for i in ItemMaster.objects.filter(id__in=ids)}
+    items = {i.id: i for i in C.Item.objects.filter(id__in=ids)}
 
     # Latest purchase rate per item (only needed for 'last_rate')
     last_rates = {}
     if basis == 'last_rate':
-        lines = (QuotationItem.objects
+        lines = (C.QuotationItem.objects
                  .filter(item_id__in=ids, quotation__status__in=['CONFIRMED', 'COMPLETED'])
                  .order_by('quotation__created_at', 'id')
                  .values('item_id', 'rate', 'quotation__currency'))

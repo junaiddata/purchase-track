@@ -1,6 +1,11 @@
+from types import SimpleNamespace
+
 from django import forms
 from django.forms import inlineformset_factory
-from .models import ItemMaster, Quotation, QuotationItem, Shipment, Release, Manufacturer
+from .models import (
+    ItemMaster, Quotation, QuotationItem, Shipment, Release, Manufacturer,
+    AlabamaItemMaster, AlabamaQuotation, AlabamaQuotationItem, AlabamaShipment, AlabamaRelease,
+)
 
 class UploadItemForm(forms.Form):
     file = forms.FileField(label='Select Excel File')
@@ -29,10 +34,12 @@ class QuotationForm(forms.ModelForm):
         help_text="Select one or more brands/firms"
     )
     
+    item_model = ItemMaster   # overridden by the Alabama subclass
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Get distinct firms from ItemMaster
-        firms = ItemMaster.objects.values_list('item_firm', flat=True).distinct().order_by('item_firm')
+        # Get distinct firms from the company's item table
+        firms = self.item_model.objects.values_list('item_firm', flat=True).distinct().order_by('item_firm')
         # Create choices list: [('FirmA', 'FirmA'), ...]
         firm_choices = [(firm, firm) for firm in firms if firm]
         
@@ -65,13 +72,15 @@ class QuotationForm(forms.ModelForm):
         }
 
 class QuotationItemForm(forms.ModelForm):
+    item_model = ItemMaster   # overridden by the Alabama subclass
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Performance & Validation Fix:
         # We need to ensure the specific item submitted (or existing) is in the queryset
         # so validation passes, WITHOUT loading all 6000 items.
-        
-        self.fields['item'].queryset = ItemMaster.objects.none()
+
+        self.fields['item'].queryset = self.item_model.objects.none()
 
         if self.data:
             # Bound form (POST): Get the submitted item ID
@@ -79,10 +88,10 @@ class QuotationItemForm(forms.ModelForm):
             item_key = self.add_prefix('item')
             item_id = self.data.get(item_key)
             if item_id:
-                self.fields['item'].queryset = ItemMaster.objects.filter(pk=item_id)
+                self.fields['item'].queryset = self.item_model.objects.filter(pk=item_id)
         elif self.instance.pk:
             # Editing existing item (GET): Load the existing item
-            self.fields['item'].queryset = ItemMaster.objects.filter(pk=self.instance.item_id)
+            self.fields['item'].queryset = self.item_model.objects.filter(pk=self.instance.item_id)
 
     class Meta:
         model = QuotationItem
@@ -165,3 +174,61 @@ class ReleaseForm(forms.ModelForm):
              'quantity_released': forms.NumberInput(attrs={'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6'}),
              'container_info': forms.TextInput(attrs={'class': 'block w-full rounded-md border-0 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm sm:leading-6', 'placeholder': 'e.g. Container #1234, Truck #55'}),
         }
+
+
+# ---------------------------------------------------------------------------
+# Per-company forms. Alabama's forms are the same forms bound to Alabama's own tables, so an Alabama
+# form can only see and save Alabama records.
+# ---------------------------------------------------------------------------
+class AlabamaQuotationForm(QuotationForm):
+    item_model = AlabamaItemMaster
+
+    class Meta(QuotationForm.Meta):
+        model = AlabamaQuotation
+
+
+class AlabamaQuotationItemForm(QuotationItemForm):
+    item_model = AlabamaItemMaster
+
+    class Meta(QuotationItemForm.Meta):
+        model = AlabamaQuotationItem
+
+
+AlabamaQuotationItemFormSet = inlineformset_factory(
+    AlabamaQuotation, AlabamaQuotationItem,
+    form=AlabamaQuotationItemForm,
+    extra=1,
+    can_delete=True
+)
+
+
+class AlabamaShipmentForm(ShipmentForm):
+    class Meta(ShipmentForm.Meta):
+        model = AlabamaShipment
+
+
+class AlabamaReleaseEditForm(ReleaseEditForm):
+    class Meta(ReleaseEditForm.Meta):
+        model = AlabamaRelease
+
+
+class AlabamaReleaseForm(ReleaseForm):
+    class Meta(ReleaseForm.Meta):
+        model = AlabamaRelease
+
+
+COMPANY_FORMS = {
+    'junaid': SimpleNamespace(
+        QuotationForm=QuotationForm, QuotationItemFormSet=QuotationItemFormSet,
+        ShipmentForm=ShipmentForm, ReleaseForm=ReleaseForm, ReleaseEditForm=ReleaseEditForm,
+    ),
+    'alabama': SimpleNamespace(
+        QuotationForm=AlabamaQuotationForm, QuotationItemFormSet=AlabamaQuotationItemFormSet,
+        ShipmentForm=AlabamaShipmentForm, ReleaseForm=AlabamaReleaseForm, ReleaseEditForm=AlabamaReleaseEditForm,
+    ),
+}
+
+
+def forms_for(company):
+    """The form classes to use for a company (see companies.py)."""
+    return COMPANY_FORMS[company.key]

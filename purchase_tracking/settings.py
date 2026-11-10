@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'tracking.middleware.CompanyMiddleware',   # Junaid / Alabama (/alabama/ prefix) + access rules
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -72,6 +73,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'tracking.context_processors.company',
             ],
         },
     },
@@ -149,3 +151,8 @@ QUOTATION_API_KEY = env('QUOTATION_API_KEY')
 # API key for the external Consolidated Qty API (sent as X-API-Key header)
 CONSOLIDATED_API_KEY = env('CONSOLIDATED_API_KEY', default='')
 ALABAMA_API_KEY = env('ALABAMA_API_KEY', default='')
+# Alabama stock feed (sent with the X-API-Key header; include_cost=1 is needed to receive cost prices)
+ALABAMA_STOCK_API_URL = env('ALABAMA_STOCK_API_URL', default='https://stock.junaidworld.com/api/alabama/stock?include_cost=1')
+# Alabama SAP Quoted Qty (Jul-Sep 2026): its own endpoint and its own API key (the Junaid key is not accepted)
+ALABAMA_QUOTATION_TOTALS_API_URL = env('ALABAMA_QUOTATION_TOTALS_API_URL', default='https://salesorder.junaidworld.com/alabama/api/item-quotation-totals/')
+ALABAMA_QUOTATION_API_KEY = env('ALABAMA_QUOTATION_API_KEY', default='')

@@ -64,11 +64,11 @@
         <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 gap-4">
                 <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
+                    <div class="flex-shrink-0 flex items-center">{% if company.logo_url %}
                         <img src="https://sp-ao.shortpixel.ai/client/to_webp,q_glossy,ret_img,w_422/https://junaidworld.com/wp-content/uploads/2023/09/footer-logo.png.webp"
-                            alt="Logo" class="h-8 w-auto mr-3">
+                            alt="Logo" class="h-8 w-auto mr-3">{% endif %}
                         <span class="text-xl font-bold text-brand-600 tracking-tight">Purchase<span
-                                class="text-slate-900">Track</span></span>
+                                class="text-slate-900">Track</span></span>{% if company.is_alabama %}<span class="ml-3 inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-bold tracking-wider text-red-700 ring-1 ring-inset ring-red-300">ALABAMA</span>{% endif %}
                     </div>
                     {% if user.is_authenticated %}
                     <div class="hidden min-[1150px]:ml-6 min-[1150px]:flex min-[1150px]:space-x-4 2xl:space-x-6">
@@ -118,7 +118,7 @@
                                 {% if user.profile.role == 'SALESMAN' %}User{% else %}{{user.profile.role|default:"User" }}{% endif %}
                             </span>
                         </span>
-                        <a href="{% url 'logout' %}"
+                        {% if company_switch %}<!--COMPANY-SWITCH--><a href="{{ company_switch.url }}" class="text-xs font-semibold {% if company_switch.name == 'Alabama' %}bg-red-100 text-red-700 hover:bg-red-200{% else %}bg-blue-100 text-blue-700 hover:bg-blue-200{% endif %} rounded-md px-2.5 py-1.5">Switch to {{ company_switch.name }}</a><!--/COMPANY-SWITCH-->{% endif %}<a href="{% url 'logout' %}"
                             class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
                     </div>
                     <!-- Mobile / tablet menu button -->
@@ -162,7 +162,7 @@
                         {% if user.profile.role == 'SALESMAN' %}User{% else %}{{user.profile.role|default:"User" }}{% endif %}
                     </span>
                 </span>
-                <a href="{% url 'logout' %}" class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
+                {% if company_switch %}<!--COMPANY-SWITCH--><a href="{{ company_switch.url }}" class="text-sm font-semibold {% if company_switch.name == 'Alabama' %}bg-red-100 text-red-700 hover:bg-red-200{% else %}bg-blue-100 text-blue-700 hover:bg-blue-200{% endif %} rounded-md px-2.5 py-1">Switch to {{ company_switch.name }}</a><!--/COMPANY-SWITCH-->{% endif %}<a href="{% url 'logout' %}" class="text-sm font-medium text-brand-600 hover:text-brand-500">Logout</a>
             </div>
         </div>
         <script>

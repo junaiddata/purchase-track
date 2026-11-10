@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.db.models import Sum
 
-from .models import Release, QuotationItem, ItemMaster
+from .companies import get_company
 from .decorators import admin_required, sales_required
 from .utils import fetch_local_open_qty_map, fetch_sap_quoted_qty_map, effective_reorder_qty
 
@@ -421,9 +421,10 @@ def export_sales_track_pdf(request):
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
 
-    logo_bytes = _load_logo()
+    C = get_company(request)
+    logo_bytes = _load_logo() if C.logo_url else None
 
-    in_transit_releases = Release.objects.filter(
+    in_transit_releases = C.Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=False
     ).select_related(
@@ -432,7 +433,7 @@ def export_sales_track_pdf(request):
         'quotation_item__quotation__manufacturer'
     ).order_by('container_info', 'expected_arrival_date')
 
-    received_queryset = Release.objects.filter(
+    received_queryset = C.Release.objects.filter(
         quotation_item__item__item_firm=firm_name,
         is_received=True
     ).select_related(
@@ -441,7 +442,7 @@ def export_sales_track_pdf(request):
         'quotation_item__quotation__manufacturer'
     ).prefetch_related('quotation_item__shipments').order_by('-release_date')
 
-    all_firm_items = QuotationItem.objects.filter(
+    all_firm_items = C.QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status='CONFIRMED'
     ).select_related('item', 'quotation', 'quotation__manufacturer').order_by('expected_delivery_date')
@@ -520,7 +521,7 @@ def export_sales_track_pdf(request):
         header_widths = [2.0 * inch, usable_w - 2.0 * inch]
     else:
         # Text-only fallback
-        brand = Paragraph('<b>JUNAID</b>', _ps('Brand',
+        brand = Paragraph(f'<b>{C.pdf_brand}</b>', _ps('Brand',
             fontName='Helvetica-Bold', fontSize=18, textColor=CLR_NAVY,
         ))
         header_row = [[brand, right_stack]]
@@ -781,7 +782,7 @@ def export_sales_track_pdf(request):
         canvas.setFont('Helvetica', FONT_FOOTER)
         canvas.setFillColor(CLR_SLATE_LIGHT)
         footer_text = (
-            f"Page {doc.page}  ·  Junaid World  ·  "
+            f"Page {doc.page}  ·  {C.footer_name}  ·  "
             f"Import Purchase Report — {_esc(firm_name)}  ·  "
             f"{datetime.now().strftime('%d %b %Y')}"
         )
@@ -831,7 +832,8 @@ def export_consolidated_excel(request):
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
 
-    quotation_items = QuotationItem.objects.filter(
+    C = get_company(request)
+    quotation_items = C.QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status__in=['CONFIRMED', 'COMPLETED']
     ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
@@ -878,8 +880,8 @@ def export_consolidated_excel(request):
 
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
-    local_map = fetch_local_open_qty_map()
-    sap_quoted_map = fetch_sap_quoted_qty_map()
+    local_map = fetch_local_open_qty_map() if C.show_local_columns else {}
+    sap_quoted_map = fetch_sap_quoted_qty_map(C) if C.show_sap_quoted else {}
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -893,11 +895,15 @@ def export_consolidated_excel(request):
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-    headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty', 'Local Open Qty', 'Import + Local', 'Stock']
+    headers = ['Item Code', 'Item Name'] + sorted_dates + ['In Transit', 'To Be Released', 'Total Qty']
+    if C.show_local_columns:
+        headers += ['Local Open Qty', 'Import + Local']
+    headers += ['Stock']
     if is_admin:
-        headers += ['Sold Stock', 'SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty on Sold Stock']
-    else:
-        headers += ['SAP Quoted Qty (Jul-Sep 2026)', 'Reorder Qty on Sold Stock']
+        headers += ['Sold Stock']
+    if C.show_sap_quoted:
+        headers += ['SAP Quoted Qty (Jul-Sep 2026)']
+    headers += ['Reorder Qty on Sold Stock']
 
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -936,21 +942,23 @@ def export_consolidated_excel(request):
             ws.cell(row=row_num, column=col, value=v if v > 0 else '-').border = thin_border
             col += 1
 
-        local_open_qty = local_map.get(str(item_code).strip(), 0)
-        import_plus_local = data['total_qty'] + local_open_qty
-        ws.cell(row=row_num, column=col, value=local_open_qty if local_open_qty > 0 else '-').border = thin_border
-        col += 1
-        ws.cell(row=row_num, column=col, value=import_plus_local if import_plus_local > 0 else '-').border = thin_border
-        col += 1
+        if C.show_local_columns:
+            local_open_qty = local_map.get(str(item_code).strip(), 0)
+            import_plus_local = data['total_qty'] + local_open_qty
+            ws.cell(row=row_num, column=col, value=local_open_qty if local_open_qty > 0 else '-').border = thin_border
+            col += 1
+            ws.cell(row=row_num, column=col, value=import_plus_local if import_plus_local > 0 else '-').border = thin_border
+            col += 1
 
         ws.cell(row=row_num, column=col, value=safe_val(data['stock'])).border = thin_border
         col += 1
         if is_admin:
             ws.cell(row=row_num, column=col, value=safe_val(data['sold_stock']) if data['sold_stock'] is not None else '-').border = thin_border
             col += 1
-        sap_quoted = sap_quoted_map.get(str(item_code).strip(), 0)
-        ws.cell(row=row_num, column=col, value=sap_quoted if sap_quoted > 0 else '-').border = thin_border
-        col += 1
+        if C.show_sap_quoted:
+            sap_quoted = sap_quoted_map.get(str(item_code).strip(), 0)
+            ws.cell(row=row_num, column=col, value=sap_quoted if sap_quoted > 0 else '-').border = thin_border
+            col += 1
         ws.cell(row=row_num, column=col, value=safe_val(data['reorder_qty'])).border = thin_border
         row_num += 1
 
@@ -1284,7 +1292,8 @@ def export_consolidated_pdf(request):
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
 
-    quotation_items = QuotationItem.objects.filter(
+    C = get_company(request)
+    quotation_items = C.QuotationItem.objects.filter(
         item__item_firm=firm_name,
         quotation__status__in=['CONFIRMED', 'COMPLETED']
     ).select_related('item', 'quotation').prefetch_related('releases').order_by('item__item_code')
@@ -1334,8 +1343,8 @@ def export_consolidated_pdf(request):
 
     sorted_dates = sorted(all_dates, key=lambda x: datetime.strptime(x, '%b %d %Y'))
 
-    local_map = fetch_local_open_qty_map()
-    sap_quoted_map = fetch_sap_quoted_qty_map()
+    local_map = fetch_local_open_qty_map() if C.show_local_columns else {}
+    sap_quoted_map = fetch_sap_quoted_qty_map(C) if C.show_sap_quoted else {}
 
     # Compute totals for KPI bar
     total_items = len(consolidated_data)
@@ -1347,7 +1356,7 @@ def export_consolidated_pdf(request):
     # PDF DOCUMENT SETUP
     # ─────────────────────────────────────────────────────────────
 
-    logo_bytes = _load_logo()
+    logo_bytes = _load_logo() if C.logo_url else None
     buffer = BytesIO()
     pw, ph = landscape(A4)
     margin_h = 0.35 * inch
@@ -1390,7 +1399,7 @@ def export_consolidated_pdf(request):
         header_row = [['', right_stack]]
         header_widths = [2.0 * inch, usable_w - 2.0 * inch]
     else:
-        brand = Paragraph('<b>JUNAID</b>', _ps('CBrand',
+        brand = Paragraph(f'<b>{C.pdf_brand}</b>', _ps('CBrand',
             fontName='Helvetica-Bold', fontSize=18, textColor=CLR_NAVY,
         ))
         header_row = [[brand, right_stack]]
@@ -1502,14 +1511,16 @@ def export_consolidated_pdf(request):
         ('Transit', S_TH_C),
         ('Pending', S_TH_C),
         ('Total', S_TH_C),
-        ('Local', S_TH_C),
-        ('Imp+Loc', S_TH_C),
-        ('Stock', S_TH_C),
     ])
+    if C.show_local_columns:
+        headers.extend([('Local', S_TH_C), ('Imp+Loc', S_TH_C)])
+    headers.append(('Stock', S_TH_C))
 
     if is_admin:
         headers.append(('Sold', S_TH_C))
-    headers.extend([('SAP Qty<br/>Jul-Sep 26', S_TH_C), ('Reorder on<br/>Sold Stock', S_TH_C)])
+    if C.show_sap_quoted:
+        headers.append(('SAP Qty<br/>Jul-Sep 26', S_TH_C))
+    headers.append(('Reorder on<br/>Sold Stock', S_TH_C))
 
     # Calculate column widths
     date_col_w = 38
@@ -1524,7 +1535,11 @@ def export_consolidated_pdf(request):
     reorder_w = 38
     sap_w = 42
 
-    fixed_w = code_w + transit_w + pending_w + total_w + local_w + import_local_w + stock_w + reorder_w + sap_w
+    fixed_w = code_w + transit_w + pending_w + total_w + stock_w + reorder_w
+    if C.show_local_columns:
+        fixed_w += local_w + import_local_w
+    if C.show_sap_quoted:
+        fixed_w += sap_w
     if is_admin:
         fixed_w += sold_w
     date_total_w = len(sorted_dates) * date_col_w
@@ -1532,10 +1547,15 @@ def export_consolidated_pdf(request):
 
     col_widths = [code_w, desc_w]
     col_widths += [date_col_w] * len(sorted_dates)
-    col_widths += [transit_w, pending_w, total_w, local_w, import_local_w, stock_w]
+    col_widths += [transit_w, pending_w, total_w]
+    if C.show_local_columns:
+        col_widths += [local_w, import_local_w]
+    col_widths += [stock_w]
     if is_admin:
         col_widths += [sold_w]
-    col_widths += [sap_w, reorder_w]
+    if C.show_sap_quoted:
+        col_widths += [sap_w]
+    col_widths += [reorder_w]
 
     # Build data rows
     data_rows = []
@@ -1555,9 +1575,10 @@ def export_consolidated_pdf(request):
             for _ in sorted_dates:
                 row.append(_p_dash())
             row.extend([_p_dash(), _p_dash(), _p_dash()])
-            local_open_qty = local_map.get(str(item_code).strip(), 0)
-            row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
-            row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
+            if C.show_local_columns:
+                local_open_qty = local_map.get(str(item_code).strip(), 0)
+                row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
+                row.append(_p_num(local_open_qty, S_TD_BOLD_C) if local_open_qty > 0 else _p_dash())
             row.append(_p_num(data['stock'], S_TD_BOLD_C))
         else:
             # Active item — show date quantities and summary
@@ -1567,16 +1588,18 @@ def export_consolidated_pdf(request):
             row.append(_p_val_or_dash(data['on_the_way'], S_TD_BOLD_C))
             row.append(_p_val_or_dash(data['pending_at_factory'], S_TD_BOLD_C))
             row.append(_p_val_or_dash(data['total_qty'], S_TD_BOLD_C))
-            local_open_qty = local_map.get(str(item_code).strip(), 0)
-            import_plus_local = data['total_qty'] + local_open_qty
-            row.append(_p_val_or_dash(local_open_qty, S_TD_BOLD_C))
-            row.append(_p_val_or_dash(import_plus_local, S_TD_BOLD_C))
+            if C.show_local_columns:
+                local_open_qty = local_map.get(str(item_code).strip(), 0)
+                import_plus_local = data['total_qty'] + local_open_qty
+                row.append(_p_val_or_dash(local_open_qty, S_TD_BOLD_C))
+                row.append(_p_val_or_dash(import_plus_local, S_TD_BOLD_C))
             row.append(_p_num(data['stock'], S_TD_BOLD_C))
 
         if is_admin:
             sold = data['sold_stock']
             row.append(Paragraph(str(sold) if sold is not None else '—', S_TD_C))
-        row.append(_p_val_or_dash(sap_quoted_map.get(str(item_code).strip(), 0), S_TD_BOLD_C))
+        if C.show_sap_quoted:
+            row.append(_p_val_or_dash(sap_quoted_map.get(str(item_code).strip(), 0), S_TD_BOLD_C))
         row.append(_p_num(data['reorder_qty'], S_TD_C))
 
         data_rows.append(row)
@@ -1662,7 +1685,7 @@ def export_consolidated_pdf(request):
         canvas.setFillColor(CLR_SLATE_LIGHT)
         raw_firm = firm_name.replace('&', '&').replace('<', '<').replace('>', '>')
         footer_text = (
-            f"Page {doc.page}  ·  Junaid World  ·  "
+            f"Page {doc.page}  ·  {C.footer_name}  ·  "
             f"Consolidated Import Report — {raw_firm}  ·  "
             f"{datetime.now().strftime('%d %b %Y')}"
         )
@@ -1703,6 +1726,16 @@ ITEM_SUMMARY_VALUE_KEYS = [
 ITEM_SUMMARY_QTY_KEYS = ['stock', 'ordered', 'pending_at_factory', 'in_transit', 'reorder_qty', 'sold_stock']
 
 
+def _item_summary_columns(company):
+    """(headers, value_keys) of the Item Summary exports; SAP Quoted Qty is dropped when a company does not show it."""
+    if company.show_sap_quoted:
+        return ITEM_SUMMARY_HEADERS, ITEM_SUMMARY_VALUE_KEYS
+    drop = ITEM_SUMMARY_VALUE_KEYS.index('sap_quoted_qty')
+    keys = [k for k in ITEM_SUMMARY_VALUE_KEYS if k != 'sap_quoted_qty']
+    headers = ITEM_SUMMARY_HEADERS[:2 + drop] + ITEM_SUMMARY_HEADERS[2 + drop + 1:]
+    return headers, keys
+
+
 def _item_summary_cell(row, key, for_pdf=False):
     """Display value of one Item Summary column (price/date formatted, blanks as empty)."""
     value = row[key]
@@ -1729,7 +1762,9 @@ def export_item_summary_excel(request):
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
     search = request.GET.get('search', '')
-    rows = build_item_summary_rows(firm_name, search)
+    C = get_company(request)
+    rows = build_item_summary_rows(firm_name, search, company=C)
+    headers_, keys_ = _item_summary_columns(C)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -1751,7 +1786,7 @@ def export_item_summary_excel(request):
     ws.cell(row=2, column=1, value=subtitle).font = Font(italic=True, size=9, color="64748B")
 
     header_row = 4
-    for col, header in enumerate(ITEM_SUMMARY_HEADERS, 1):
+    for col, header in enumerate(headers_, 1):
         cell = ws.cell(row=header_row, column=col, value=header)
         cell.font = Font(bold=True, size=10)
         cell.fill = header_fill
@@ -1764,7 +1799,7 @@ def export_item_summary_excel(request):
         c = ws.cell(row=row_num, column=2, value=row['item_description'])
         c.border = thin_border
         c.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
-        for offset, key in enumerate(ITEM_SUMMARY_VALUE_KEYS):
+        for offset, key in enumerate(keys_):
             c = ws.cell(row=row_num, column=3 + offset, value=_item_summary_cell(row, key))
             c.border = thin_border
             if key == 'ordered_price':
@@ -1775,13 +1810,13 @@ def export_item_summary_excel(request):
 
     # Totals row
     if rows:
-        for col in range(1, len(ITEM_SUMMARY_HEADERS) + 1):
+        for col in range(1, len(headers_) + 1):
             ws.cell(row=row_num, column=col).fill = total_fill
             ws.cell(row=row_num, column=col).border = thin_border
         c = ws.cell(row=row_num, column=1, value=f"TOTAL ({len(rows)} items)")
         c.font = Font(bold=True)
         ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=2)
-        for offset, key in enumerate(ITEM_SUMMARY_VALUE_KEYS):
+        for offset, key in enumerate(keys_):
             if key not in ITEM_SUMMARY_QTY_KEYS:
                 continue
             c = ws.cell(row=row_num, column=3 + offset, value=sum(r[key] for r in rows))
@@ -1822,7 +1857,9 @@ def export_item_summary_pdf(request):
     if not firm_name:
         return HttpResponse("Firm name required", status=400)
     search = request.GET.get('search', '')
-    rows = build_item_summary_rows(firm_name, search)
+    C = get_company(request)
+    rows = build_item_summary_rows(firm_name, search, company=C)
+    headers_, keys_ = _item_summary_columns(C)
 
     CLR_NAVY = HexColor('#0F172A')
     CLR_SLATE = HexColor('#334155')
@@ -1862,24 +1899,25 @@ def export_item_summary_pdf(request):
         Spacer(1, 10),
     ]
 
-    header = [Paragraph(h, s_th if i < 2 else s_th_r) for i, h in enumerate(ITEM_SUMMARY_HEADERS)]
+    header = [Paragraph(h, s_th if i < 2 else s_th_r) for i, h in enumerate(headers_)]
     data = [header]
     for row in rows:
         data.append(
             [Paragraph(escape(row['item_code']), s_td_b), Paragraph(escape(row['item_description'] or ''), s_td)]
-            + [_item_summary_cell(row, key, for_pdf=True) for key in ITEM_SUMMARY_VALUE_KEYS]
+            + [_item_summary_cell(row, key, for_pdf=True) for key in keys_]
         )
     if rows:
         data.append(
             [Paragraph(f"TOTAL ({len(rows)} items)", s_td_b), '']
             + [f"{sum(r[key] for r in rows):,}" if key in ITEM_SUMMARY_QTY_KEYS else ''
-               for key in ITEM_SUMMARY_VALUE_KEYS]
+               for key in keys_]
         )
     else:
-        data.append([Paragraph('No items found for this brand.', s_td)] + [''] * 9)
+        data.append([Paragraph('No items found for this brand.', s_td)] + [''] * len(keys_))
 
     qty_w = 0.8 * inch
-    col_widths = [1.1 * inch, usable_w - 1.1 * inch - 8 * qty_w] + [qty_w] * 8
+    n_qty = len(keys_) - 1   # same sizing rule as before (9 value columns -> 8 qty-wide columns)
+    col_widths = [1.1 * inch, usable_w - 1.1 * inch - n_qty * qty_w] + [qty_w] * n_qty
     table = Table(data, colWidths=col_widths, repeatRows=1)
     style = [
         ('BACKGROUND', (0, 0), (-1, 0), CLR_NAVY),
@@ -1917,7 +1955,7 @@ def export_item_summary_pdf(request):
         canvas.setFillColor(CLR_SLATE_LIGHT)
         canvas.drawCentredString(
             pw / 2, footer_y,
-            f"Page {doc.page}  |  Junaid World  |  Item Summary - {firm_name}  |  {datetime.now().strftime('%d %b %Y')}"
+            f"Page {doc.page}  |  {C.footer_name}  |  Item Summary - {firm_name}  |  {datetime.now().strftime('%d %b %Y')}"
         )
         canvas.restoreState()
 
